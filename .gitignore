@@ -21,3 +21,5 @@ target/
 ### Others ###
 design
 
+bench/src/main/resources/org/vanilladb/bench/vanillabench.properties
+bench/src/main/resources/org/vanilladb/core/vanilladb.properties
