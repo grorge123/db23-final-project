@@ -1,5 +1,9 @@
 package org.vanilladb.core.query.planner.opt;
 
+import org.vanilladb.core.query.algebra.Plan;
+import org.vanilladb.core.query.algebra.Scan;
+import org.vanilladb.core.query.algebra.SelectPlan;
+import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.parse.CreateIndexData;
 import org.vanilladb.core.query.parse.ModifyData;
 import org.vanilladb.core.query.parse.InsertData;
@@ -16,10 +20,7 @@ import org.vanilladb.core.storage.index.IndexType;
 
 import java.nio.ByteBuffer;
 import java.sql.Connection;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
@@ -49,25 +50,55 @@ public class KNNIndex {
         tx.commit();
         isInit = true;
     }
-    public void update(int recordId, int groupId, Transaction tx){
+    public void update(Constant recordId, Constant groupId, Transaction tx){
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
         Map<String, Expression> map = new HashMap<String, Expression>();
-        map.put("groupid", new ConstantExpression(Constant.newInstance(Type.INTEGER, ByteBuffer.allocate(4).putInt(groupId).array())));
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(Constant.newInstance(Type.INTEGER, ByteBuffer.allocate(4).putInt(recordId).array()))));
+        map.put("groupid", new ConstantExpression(groupId));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordId)));
         ModifyData md = new ModifyData(tbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0){
             List<String> fields = Arrays.asList("groupid", "recordid");
-            List<Constant> vals = Arrays.asList(
-                    Constant.newInstance(Type.INTEGER, ByteBuffer.allocate(4).putInt(groupId).array()),
-                    Constant.newInstance(Type.INTEGER, ByteBuffer.allocate(4).putInt(recordId).array())
-            );
+            List<Constant> vals = Arrays.asList(groupId, recordId);
             InsertData ind = new InsertData(tbl, fields, vals);
             iup.executeInsert(ind, tx);
         }
     }
-    public void query(){
+    public Constant queryGroup(Constant recordId, Transaction tx){
+        TablePlan tp = new TablePlan(tbl, tx);
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordId)));
+        Plan selectPlan = IndexSelector.selectByBestMatchedIndex(tbl, tp, pred, tx);
+        if (selectPlan == null)
+            selectPlan = new SelectPlan(tp, pred);
+        else
+            selectPlan = new SelectPlan(selectPlan, pred);
+        Scan s = selectPlan.open();
+        s.beforeFirst();
+        if(s.next()){
+            Constant val = s.getVal("groupid");
+            s.close();
+            return val;
+        }
+        s.close();
+        return  Constant.defaultInstance(Type.INTEGER);
+    }
 
+    public List<Constant> queryRecord(Constant groupId, Transaction tx){
+        TablePlan tp = new TablePlan(tbl, tx);
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
+        Plan selectPlan = IndexSelector.selectByBestMatchedIndex(tbl, tp, pred, tx);
+        if (selectPlan == null)
+            selectPlan = new SelectPlan(tp, pred);
+        else
+            selectPlan = new SelectPlan(selectPlan, pred);
+        Scan s = selectPlan.open();
+        s.beforeFirst();
+        List<Constant> reList = new ArrayList<Constant>();
+        while (s.next()){
+            reList.add(s.getVal("recordid"));
+        }
+        s.close();
+        return  reList;
     }
 
 }
