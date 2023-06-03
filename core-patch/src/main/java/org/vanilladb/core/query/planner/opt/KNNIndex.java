@@ -7,6 +7,7 @@ import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.parse.CreateIndexData;
 import org.vanilladb.core.query.parse.ModifyData;
 import org.vanilladb.core.query.parse.InsertData;
+import org.vanilladb.core.query.planner.Verifier;
 import org.vanilladb.core.query.planner.index.IndexSelector;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
 import org.vanilladb.core.server.VanillaDb;
@@ -25,8 +26,8 @@ import java.util.*;
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
 public class KNNIndex {
-    static boolean isInit = false;
-    static String tbl;
+    boolean isInit = false;
+    String tbl;
     public KNNIndex(String _tbl){
         if(!isInit){
             tbl = _tbl;
@@ -37,15 +38,17 @@ public class KNNIndex {
         Transaction tx = VanillaDb.txMgr().newTransaction(
                 Connection.TRANSACTION_SERIALIZABLE, false);
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
-        String indexTbl = tbl + "index";
         Schema sch = new Schema();
         sch.addField("groupid", Type.INTEGER);
         sch.addField("recordid", Type.INTEGER);
-        CreateTableData ctd = new CreateTableData(indexTbl, sch);
+        CreateTableData ctd = new CreateTableData(tbl, sch);
+        Verifier.verifyCreateTableData(ctd, tx);
         iup.executeCreateTable(ctd, tx);
-        CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.HASH);
+        CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
+        Verifier.verifyCreateIndexData(cid, tx);
         iup.executeCreateIndex(cid, tx);
-        cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid"), IndexType.HASH);
+        cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid"), IndexType.BTREE);
+        Verifier.verifyCreateIndexData(cid, tx);
         iup.executeCreateIndex(cid, tx);
         tx.commit();
         isInit = true;
