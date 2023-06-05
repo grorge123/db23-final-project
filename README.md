@@ -11,6 +11,17 @@ Can you extend a relational database system to support storing and querying over
 5. Write a report (Details can be seen below)
 6. Push to GitLab and open a merge request
 
+
+## How to Run
+1. Start the server
+2. Load the provided Approximate Nearest Neighbor (ANN) dataset
+3. Stop the server to flush all the changes 
+4. Restart the server
+5. Run the provided ANN benchmark
+6. Check the benchmark result
+
+Note: Your improvement will be evaluated on the provided properties (10k items with 48-dimensional vector embedding each)
+
 ## Hints
 
 - We will only use `HeuristicQueryPlanner` for our vector search operations.
