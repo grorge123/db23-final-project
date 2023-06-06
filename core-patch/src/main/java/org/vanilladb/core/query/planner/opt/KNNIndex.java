@@ -13,11 +13,14 @@ import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
 import org.vanilladb.core.server.VanillaDb;
 import org.vanilladb.core.sql.Type;
 import org.vanilladb.core.sql.predicate.*;
+import org.vanilladb.core.storage.file.BlockId;
+import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.query.parse.CreateTableData;
 import org.vanilladb.core.sql.Schema;
 import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.storage.index.IndexType;
+import org.vanilladb.core.util.ByteHelper;
 
 import java.nio.ByteBuffer;
 import java.sql.Connection;
@@ -41,35 +44,47 @@ public class KNNIndex {
         Schema sch = new Schema();
         sch.addField("groupid", Type.INTEGER);
         sch.addField("recordid", Type.INTEGER);
+        sch.addField("blockid", Type.INTEGER);
+        sch.addField("filename", Type.VARCHAR);
         CreateTableData ctd = new CreateTableData(tbl, sch);
         Verifier.verifyCreateTableData(ctd, tx);
         iup.executeCreateTable(ctd, tx);
         CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
         Verifier.verifyCreateIndexData(cid, tx);
         iup.executeCreateIndex(cid, tx);
-        cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid"), IndexType.BTREE);
+        cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid", "filename"), IndexType.BTREE);
         Verifier.verifyCreateIndexData(cid, tx);
         iup.executeCreateIndex(cid, tx);
         tx.commit();
         isInit = true;
     }
-    public void update(Constant recordId, Constant groupId, Transaction tx){
+    public void update(RecordId recordId, Constant groupId, Transaction tx){
+        Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
+        Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
+        Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("groupid", new ConstantExpression(groupId));
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordId)));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
+        pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
+        pred.conjunctWith(new Term(new FieldNameExpression("filename"), OP_EQ, new ConstantExpression(fileName)));
         ModifyData md = new ModifyData(tbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0){
-            List<String> fields = Arrays.asList("groupid", "recordid");
-            List<Constant> vals = Arrays.asList(groupId, recordId);
+            List<String> fields = Arrays.asList("groupid", "recordid", "blockid", "filename");
+            List<Constant> vals = Arrays.asList(groupId, recordIdId, blockId, fileName);
             InsertData ind = new InsertData(tbl, fields, vals);
             iup.executeInsert(ind, tx);
         }
     }
-    public Constant queryGroup(Constant recordId, Transaction tx){
+    public Constant queryGroup(RecordId recordId, Transaction tx){
+        Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
+        Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
+        Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
         TablePlan tp = new TablePlan(tbl, tx);
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordId)));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
+        pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
+        pred.conjunctWith(new Term(new FieldNameExpression("filename"), OP_EQ, new ConstantExpression(fileName)));
         Plan selectPlan = IndexSelector.selectByBestMatchedIndex(tbl, tp, pred, tx);
         if (selectPlan == null)
             selectPlan = new SelectPlan(tp, pred);
@@ -86,7 +101,7 @@ public class KNNIndex {
         return  Constant.defaultInstance(Type.INTEGER);
     }
 
-    public List<Constant> queryRecord(Constant groupId, Transaction tx){
+    public List<RecordId> queryRecord(Constant groupId, Transaction tx){
         TablePlan tp = new TablePlan(tbl, tx);
         Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
         Plan selectPlan = IndexSelector.selectByBestMatchedIndex(tbl, tp, pred, tx);
@@ -96,9 +111,11 @@ public class KNNIndex {
             selectPlan = new SelectPlan(selectPlan, pred);
         Scan s = selectPlan.open();
         s.beforeFirst();
-        List<Constant> reList = new ArrayList<Constant>();
+        List<RecordId> reList = new ArrayList<RecordId>();
         while (s.next()){
-            reList.add(s.getVal("recordid"));
+            String filename = (String)s.getVal("filename").asJavaVal();
+            long blockId = (Long)s.getVal("blockid").asJavaVal();
+            reList.add(new RecordId(new BlockId(filename, blockId), (int)s.getVal("recordid").asJavaVal()));
         }
         s.close();
         return  reList;
