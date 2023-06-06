@@ -12,8 +12,11 @@ import org.vanilladb.core.query.planner.index.IndexSelector;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
 import org.vanilladb.core.server.VanillaDb;
 import org.vanilladb.core.sql.Type;
+import org.vanilladb.core.sql.VectorConstant;
 import org.vanilladb.core.sql.predicate.*;
 import org.vanilladb.core.storage.file.BlockId;
+import org.vanilladb.core.storage.metadata.TableInfo;
+import org.vanilladb.core.storage.record.RecordFile;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.query.parse.CreateTableData;
@@ -31,15 +34,22 @@ import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 public class KNNIndex {
     boolean isInit = false;
     String tbl;
+    String originTble;
+    TableInfo ti;
+    String embField = "i_emb";
+
+    // The table name which searched by KNN
     public KNNIndex(String _tbl){
         if(!isInit){
-            tbl = _tbl;
+            originTble = _tbl;
+            tbl = originTble + "indextable";
             init();
         }
     }
     public void init(){
         Transaction tx = VanillaDb.txMgr().newTransaction(
                 Connection.TRANSACTION_SERIALIZABLE, false);
+        ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
         Schema sch = new Schema();
         sch.addField("groupid", Type.INTEGER);
@@ -119,6 +129,14 @@ public class KNNIndex {
         }
         s.close();
         return  reList;
+    }
+    public VectorConstant getVec(RecordId recordId, Transaction tx){
+        RecordFile rf = new RecordFile(ti, tx, true);
+        rf.moveToRecordId(recordId);
+        Constant reCon = rf.getVal(embField);
+        VectorConstant reVal = (VectorConstant)reCon.asJavaVal();
+        rf.close();
+        return reVal;
     }
 
 }
