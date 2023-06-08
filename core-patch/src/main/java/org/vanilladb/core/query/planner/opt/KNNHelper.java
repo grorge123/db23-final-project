@@ -25,23 +25,24 @@ import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.storage.index.IndexType;
 import org.vanilladb.core.util.ByteHelper;
 
-import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.util.*;
 
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
-public class KNNIndex {
+public class KNNHelper {
     boolean isInit = false;
+    int vecSz;
     String tbl;
     String originTble;
     TableInfo ti;
     String embField = "i_emb";
 
     // The table name which searched by KNN
-    public KNNIndex(String _tbl){
+    public KNNHelper(String _tbl, int _vecSz){
         if(!isInit){
             originTble = _tbl;
+            vecSz = _vecSz;
             tbl = originTble + "indextable";
             init();
         }
@@ -59,6 +60,14 @@ public class KNNIndex {
         CreateTableData ctd = new CreateTableData(tbl, sch);
         Verifier.verifyCreateTableData(ctd, tx);
         iup.executeCreateTable(ctd, tx);
+
+        Schema sch2 = new Schema();
+        sch.addField("groupid", Type.INTEGER);
+        sch.addField("vector", Type.VECTOR(vecSz));
+        CreateTableData ctd2 = new CreateTableData("centertable", sch2);
+        Verifier.verifyCreateTableData(ctd2, tx);
+        iup.executeCreateTable(ctd2, tx);
+
         CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
         Verifier.verifyCreateIndexData(cid, tx);
         iup.executeCreateIndex(cid, tx);
