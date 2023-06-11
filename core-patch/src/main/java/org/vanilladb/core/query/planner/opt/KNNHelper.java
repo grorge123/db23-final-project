@@ -4,9 +4,12 @@ import org.vanilladb.core.query.algebra.Plan;
 import org.vanilladb.core.query.algebra.Scan;
 import org.vanilladb.core.query.algebra.SelectPlan;
 import org.vanilladb.core.query.algebra.TablePlan;
+import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.query.parse.CreateIndexData;
 import org.vanilladb.core.query.parse.ModifyData;
 import org.vanilladb.core.query.parse.InsertData;
+import org.vanilladb.core.query.planner.QueryPlanner;
+import org.vanilladb.core.query.planner.UpdatePlanner;
 import org.vanilladb.core.query.planner.Verifier;
 import org.vanilladb.core.query.planner.index.IndexSelector;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
@@ -33,7 +36,7 @@ import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 public class KNNHelper {
     boolean isInit = false;
     int vecSz;
-    String tbl;
+    String tbl, centerTbl;
     String originTble;
     TableInfo ti;
     String embField = "i_emb";
@@ -44,6 +47,7 @@ public class KNNHelper {
             originTble = _tbl;
             vecSz = _vecSz;
             tbl = originTble + "indextable";
+            centerTbl = originTble + "centertable";
             init();
         }
     }
@@ -77,7 +81,8 @@ public class KNNHelper {
         tx.commit();
         isInit = true;
     }
-    public void update(RecordId recordId, Constant groupId, Transaction tx){
+
+    public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
         Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
@@ -96,7 +101,7 @@ public class KNNHelper {
             iup.executeInsert(ind, tx);
         }
     }
-    public Constant queryGroup(RecordId recordId, Transaction tx){
+    /*public Constant queryGroupId(RecordId recordId, Transaction tx){
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
         Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
@@ -118,6 +123,34 @@ public class KNNHelper {
         }
         s.close();
         return  Constant.defaultInstance(Type.INTEGER);
+    }*/
+
+    public void updateGroupCenter(Constant groupId, VectorConstant vec, Transaction tx){
+        UpdatePlanner up;
+        try {
+			up =  UpdatePlanner.class.newInstance();
+
+            List<String> fields = Arrays.asList("groupid", "vector");
+            List<Constant> vals = Arrays.asList(groupId, vec);
+            InsertData ind = new InsertData(centerTbl, fields, vals);
+            up.executeInsert(ind, tx);
+		} catch (InstantiationException | IllegalAccessException e) {
+			e.printStackTrace();
+		}
+    }
+
+    public List<VectorConstant> queryGroupCenters(Transaction tx){
+        List<VectorConstant> groupCenters = new ArrayList<VectorConstant>();
+
+        TablePlan p = new TablePlan(centerTbl, tx);
+        TableScan s = (TableScan) p.open();
+        s.beforeFirst();
+        while (s.next()){
+			groupCenters.add((VectorConstant) s.getVal("vector"));
+        }
+        s.close();
+
+        return groupCenters;
     }
 
     public List<RecordId> queryRecord(Constant groupId, Transaction tx){

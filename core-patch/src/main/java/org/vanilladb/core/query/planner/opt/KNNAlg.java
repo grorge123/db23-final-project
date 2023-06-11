@@ -22,15 +22,17 @@ public class KNNAlg{
     private int numDimension, numItems, numNeighbors;
 
     // Hyper Parameters
-    private int numGroups = 3;
-    private Double tolerence = 0.0;
+    private static int numGroups = 3;
+    private static Double tolerence = 0.0;
 
     // Utils
-	private KNNHelper knnHelper;
-	private String embField = "i_emb";
+	private static Boolean centerLoaded = Boolean.valueOf("false");
 	private static int curItems = 0;
+	private static VectorConstant[] groupCenter = new VectorConstant[numGroups];
+	private static KNNHelper knnHelper;
+
+	private String embField = "i_emb";
 	private Random random = new Random();
-    private VectorConstant[] groupCenter = new VectorConstant[numGroups];
     
     public KNNAlg(String _tblName, int _numDimension, int _numItems, int _numNeighbors) {
         tblName = _tblName;
@@ -50,8 +52,9 @@ public class KNNAlg{
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
 
-		// TODO: load groupCenter for once (ONCE is especially important for thread safe)
-
+		// 0. Load groupCenter if it's unloaded
+		loadCenters(tx);
+		
 		// 1. Assign query vector to a group
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
@@ -227,15 +230,25 @@ public class KNNAlg{
 		int rid = 0;
         while (s.next()){
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupId[rid]));
-			knnHelper.update(s.getRecordId(), gid, tx);
+			knnHelper.updateGroupId(s.getRecordId(), gid, tx);
 			rid++;
         }
         s.close();
 
-		// TODO: storing groupCenter back
+		for(int i=0; i<numGroups; i++) {
+			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(i+1));
+			knnHelper.updateGroupCenter(gid, groupCenter[i], tx);
+		}
     }
 
-	
+	private synchronized static void loadCenters(Transaction tx) {
+		if(!centerLoaded) 
+		{
+			List<VectorConstant> centerList = knnHelper.queryGroupCenters(tx);
+			for(int i=0; i<numGroups; i++) groupCenter[i] = centerList.get(i);
+		}
+		centerLoaded = true;
+	}
     private void KSmallest(Double[] arr, int[] idx, int l, int r, int k) {
 		// Using quickselect algorithm
 
@@ -249,7 +262,6 @@ public class KNNAlg{
 
 		// end if (pivot == k - 1)
     }
-
 	private int Partition(Double[] arr, int[] idx, int l, int r) {
         Double pivot = arr[r];
 		int partition = l;
