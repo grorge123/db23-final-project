@@ -18,7 +18,7 @@ import org.vanilladb.core.util.ByteHelper;
 
 public class KNNAlg{
     // Bench Setting
-    String tblName;
+    private String tblName;
     private int numDimension, numItems, numNeighbors;
 
     // Hyper Parameters
@@ -27,9 +27,10 @@ public class KNNAlg{
 
     // Utils
 	private KNNHelper knnHelper;
+	private String embField = "i_emb";
 	private static int curItems = 0;
 	private Random random = new Random();
-    VectorConstant[] groupCenter = new VectorConstant[numGroups];
+    private VectorConstant[] groupCenter = new VectorConstant[numGroups];
     
     public KNNAlg(String _tblName, int _numDimension, int _numItems, int _numNeighbors) {
         tblName = _tblName;
@@ -44,7 +45,7 @@ public class KNNAlg{
         if(curItems == numItems) KMeans(tx);
     }
 
-	public void findKNN(VectorConstant query, Transaction tx) {
+	public List<VectorConstant> findKNN(VectorConstant query, Transaction tx) {
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
@@ -82,8 +83,28 @@ public class KNNAlg{
 		}
 		
 		// 3. Search top K vector in the group
-        KSmallest(dist, 0, vecInGroup - 1, numNeighbors); // function undone (but almost done)
-		// return List<VectorConstant>
+        KSmallest(dist, id, 0, vecInGroup - 1, numNeighbors);
+
+		// 4. Create List<VectorConstant> from top K idx list
+		List<Integer> idxList = new ArrayList<Integer>();
+		List<VectorConstant> knnVec = new ArrayList<VectorConstant>();
+		for(int i=0; i<numNeighbors; i++)
+            idxList.add(id[i]);
+		Collections.sort(idxList);
+
+		int idx_it = 0, scan_it = 0;
+        s = (TableScan) p.open();
+        s.beforeFirst();
+        while (s.next()){
+			if(scan_it == idxList.get(idx_it)) {
+				idx_it ++;
+				knnVec.add((VectorConstant) s.getVal(embField));
+			}
+			scan_it ++;
+        }
+        s.close();
+
+		return knnVec;
 	}
 
     private void KMeans(Transaction tx) {
@@ -215,38 +236,45 @@ public class KNNAlg{
     }
 
 	
-    private void KSmallest(Double[] arr, int low, int high, int k) {
+    private void KSmallest(Double[] arr, int[] idx, int l, int r, int k) {
 		// Using quickselect algorithm
-        int pivot = Partition(arr, low, high);
-  
-        // if (pivot == k - 1), end.
+
+        int pivot = Partition(arr, idx, l, r);
   
         if (pivot < k - 1)
-            KSmallest(arr, pivot + 1, high, k);
+            KSmallest(arr, idx, pivot + 1, r, k);
   
         else if (pivot > k - 1)
-            KSmallest(arr, low, pivot - 1, k);
+            KSmallest(arr, idx, l, pivot - 1, k);
+
+		// end if (pivot == k - 1)
     }
 
-	private int Partition(Double[] arr, int low, int high) {
-        // Move smaller elements to the left of pivot
-        // and higher elements to the right
-    
-        Double pivot = arr[high];
-		int pivotloc = low;
-        for (int i = low; i <= high; i++) {
+	private int Partition(Double[] arr, int[] idx, int l, int r) {
+        Double pivot = arr[r];
+		int partition = l;
+        for (int i = l; i <= r; i++) {
             if (arr[i] < pivot) {
-                Double temp = arr[i];
-                arr[i] = arr[pivotloc];
-                arr[pivotloc] = temp;
-                pivotloc++;
+                Double tmpD = arr[i];
+                arr[i] = arr[partition];
+                arr[partition] = tmpD;
+
+				int tmpI = idx[i];
+				idx[i] = idx[partition];
+				idx[partition] = tmpI;
+
+                partition++;
             }
         }
+		
+		Double tmpD = arr[r];
+		arr[r] = arr[partition];
+		arr[partition] = tmpD;
+
+		int tmpI = idx[r];
+		idx[r] = idx[partition];
+		idx[partition] = tmpI;
   
-        Double temp = arr[high];
-        arr[high] = arr[pivotloc];
-        arr[pivotloc] = temp;
-  
-        return pivotloc;
+        return partition;
     }
 }
