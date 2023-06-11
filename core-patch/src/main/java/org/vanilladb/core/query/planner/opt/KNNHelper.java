@@ -8,7 +8,6 @@ import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.query.parse.CreateIndexData;
 import org.vanilladb.core.query.parse.ModifyData;
 import org.vanilladb.core.query.parse.InsertData;
-import org.vanilladb.core.query.planner.QueryPlanner;
 import org.vanilladb.core.query.planner.UpdatePlanner;
 import org.vanilladb.core.query.planner.Verifier;
 import org.vanilladb.core.query.planner.index.IndexSelector;
@@ -34,7 +33,7 @@ import java.util.*;
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
 public class KNNHelper {
-    boolean isInit = false;
+    private static boolean isInit = false;
     int vecSz;
     String tbl, centerTbl;
     String originTble;
@@ -43,7 +42,6 @@ public class KNNHelper {
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz){
-        if(!isInit){
             originTble = _tbl;
             vecSz = _vecSz;
             tbl = originTble + "indextable";
@@ -51,35 +49,38 @@ public class KNNHelper {
             init();
         }
     }
-    public void init(){
-        Transaction tx = VanillaDb.txMgr().newTransaction(
-                Connection.TRANSACTION_SERIALIZABLE, false);
-        ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
-        IndexUpdatePlanner iup = new IndexUpdatePlanner();
-        Schema sch = new Schema();
-        sch.addField("groupid", Type.INTEGER);
-        sch.addField("recordid", Type.INTEGER);
-        sch.addField("blockid", Type.INTEGER);
-        sch.addField("filename", Type.VARCHAR);
-        CreateTableData ctd = new CreateTableData(tbl, sch);
-        Verifier.verifyCreateTableData(ctd, tx);
-        iup.executeCreateTable(ctd, tx);
+    
+    private synchronized void init(){
+        if(!isInit){
+            Transaction tx = VanillaDb.txMgr().newTransaction(
+                    Connection.TRANSACTION_SERIALIZABLE, false);
+            ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
+            IndexUpdatePlanner iup = new IndexUpdatePlanner();
+            Schema sch = new Schema();
+            sch.addField("groupid", Type.INTEGER);
+            sch.addField("recordid", Type.INTEGER);
+            sch.addField("blockid", Type.INTEGER);
+            sch.addField("filename", Type.VARCHAR);
+            CreateTableData ctd = new CreateTableData(tbl, sch);
+            Verifier.verifyCreateTableData(ctd, tx);
+            iup.executeCreateTable(ctd, tx);
 
-        Schema sch2 = new Schema();
-        sch.addField("groupid", Type.INTEGER);
-        sch.addField("vector", Type.VECTOR(vecSz));
-        CreateTableData ctd2 = new CreateTableData("centertable", sch2);
-        Verifier.verifyCreateTableData(ctd2, tx);
-        iup.executeCreateTable(ctd2, tx);
+            Schema sch2 = new Schema();
+            sch.addField("groupid", Type.INTEGER);
+            sch.addField("vector", Type.VECTOR(vecSz));
+            CreateTableData ctd2 = new CreateTableData("centertable", sch2);
+            Verifier.verifyCreateTableData(ctd2, tx);
+            iup.executeCreateTable(ctd2, tx);
 
-        CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
-        Verifier.verifyCreateIndexData(cid, tx);
-        iup.executeCreateIndex(cid, tx);
-        cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid", "filename"), IndexType.BTREE);
-        Verifier.verifyCreateIndexData(cid, tx);
-        iup.executeCreateIndex(cid, tx);
-        tx.commit();
-        isInit = true;
+            CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
+            Verifier.verifyCreateIndexData(cid, tx);
+            iup.executeCreateIndex(cid, tx);
+            cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid", "filename"), IndexType.BTREE);
+            Verifier.verifyCreateIndexData(cid, tx);
+            iup.executeCreateIndex(cid, tx);
+            tx.commit();
+            isInit = true;
+        }
     }
 
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){

@@ -26,7 +26,7 @@ public class KNNAlg{
     private static Double tolerence = 0.0;
 
     // Utils
-	private static Boolean centerLoaded = Boolean.valueOf("false");
+	private static boolean centerLoaded = false;
 	private static int curItems = 0;
 	private static VectorConstant[] groupCenter = new VectorConstant[numGroups];
 	private static KNNHelper knnHelper;
