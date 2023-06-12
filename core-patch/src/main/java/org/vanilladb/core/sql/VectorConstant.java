@@ -13,8 +13,14 @@ import java.util.*;
  * This would enable vector processing in VanillaCore
  */
 public class VectorConstant extends Constant implements Serializable {
+
+    static Random random = new Random();
     private int[] vec;
     private Type type;
+
+    public static void seed(long seed) {
+        random = new Random(seed);
+    }
 
     public static VectorConstant zeros(int dimension) {
         int[] vec = new int[dimension];
@@ -30,7 +36,7 @@ public class VectorConstant extends Constant implements Serializable {
      */
     public VectorConstant(int length) {
         type = new VectorType(length);
-        Random random = new Random();
+
         vec = new int[length];
         for (int i = 0; i < length; i++) {
             vec[i] = random.nextInt(9999);

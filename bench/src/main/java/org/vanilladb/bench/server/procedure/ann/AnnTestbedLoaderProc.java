@@ -86,6 +86,8 @@ public class AnnTestbedLoaderProc extends StoredProcedure<AnnTestbedLoaderParamH
 
         int dim = getHelper().getVecDimension();
 
+        VectorConstant.seed(1337); // Pseudonumber random generator
+
         String sql;
         for (int i = startIId; i <= endIId; i++) {
             int iid = i;
