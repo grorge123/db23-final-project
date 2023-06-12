@@ -3,6 +3,7 @@ package org.vanilladb.bench.server.procedure.ann;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.vanilladb.bench.benchmarks.ann.AnnBenchConstants;
 import org.vanilladb.bench.server.param.ann.AnnTestbedLoaderParamHelper;
 import org.vanilladb.bench.server.procedure.StoredProcedureUtils;
 import org.vanilladb.core.server.VanillaDb;
@@ -86,7 +87,7 @@ public class AnnTestbedLoaderProc extends StoredProcedure<AnnTestbedLoaderParamH
 
         int dim = getHelper().getVecDimension();
 
-        VectorConstant.seed(1337); // Pseudonumber random generator
+        VectorConstant.seed(AnnBenchConstants.DATASET_SEED); // Pseudonumber random generator
 
         String sql;
         for (int i = startIId; i <= endIId; i++) {

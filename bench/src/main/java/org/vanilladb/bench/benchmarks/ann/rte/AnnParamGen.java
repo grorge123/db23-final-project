@@ -10,7 +10,7 @@ import org.vanilladb.core.sql.VectorConstant;
 public class AnnParamGen implements TxParamGenerator<AnnTransactionType> {
 
     private static final int NUM_QUERY = 10000;
-    private static final long QUERY_SEED = 42;
+    private static final long QUERY_SEED = AnnBenchConstants.QUERY_SEED;
 
     private VectorConstant[] queryPool = new VectorConstant[NUM_QUERY];
     private VectorConstant query;

@@ -29,12 +29,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.vanilladb.core.sql.VectorConstant;
 
 public class StatisticMgr {
 	private static Logger logger = Logger.getLogger(StatisticMgr.class.getName());
@@ -147,6 +150,20 @@ public class StatisticMgr {
 		resultSets.add(trs);
 	}
 
+	public void dumpResult(Map<VectorConstant, Set<Integer>> resultMap) {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputDir, "nearest_neighbor_dump" + ".tsv")))) {
+			writer.write("query"+ "\t" + "neighbors");
+			writer.newLine();
+			int count = 0;
+			for (Entry<VectorConstant, Set<Integer>> result : resultMap.entrySet()) {
+				writer.write(count++ + "\t" + result.getKey().toString() + "\t" + result.getValue());
+				writer.newLine();
+			}
+		} catch(IOException e) {
+			System.out.println("Error dumping nearest neighbor results");
+		}
+	}
+
 	public synchronized void outputReport() {
 		try {
 			SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd-HHmmss"); // E.g. "20180524-200824"
@@ -195,10 +212,10 @@ public class StatisticMgr {
 						+ ", avg latency: " + avgResTimeMs + " ms");
 				writer.newLine();
 			}
-			if (recall != -1) {
-				writer.write("Recall: " + String.format("%.2f", recall * 100) + "%");
-				writer.newLine();
-			}
+			// if (recall != -1) {
+			// 	writer.write("Recall: " + String.format("%.2f", recall * 100) + "%");
+			// 	writer.newLine();
+			// }
 
 			// Last line: Total statistics
 			int finishedCount = totalTxnCount - abortedTotal;
