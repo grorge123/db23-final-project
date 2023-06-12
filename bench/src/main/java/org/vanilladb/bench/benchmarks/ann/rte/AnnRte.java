@@ -41,55 +41,52 @@ public class AnnRte extends RemoteTerminalEmulator<AnnTransactionType>{
         return executor;
     }
 
-    // public void executeCalculateRecall(SutConnection conn) throws SQLException {
+    public double executeCalculateRecall(SutConnection conn) throws SQLException {
 
-    //     List<Double> recallList = new ArrayList<>();
+        List<Double> recallList = new ArrayList<>();
 
-    //     // iterate over resultMap
-    //     for (Map.Entry<VectorConstant, Set<Integer>> entry : resultMap.entrySet()) {
-    //         VectorConstant query = entry.getKey();
-    //         Set<Integer> approximateNeighbors = entry.getValue();
+        // iterate over resultMap
+        for (Map.Entry<VectorConstant, Set<Integer>> entry : resultMap.entrySet()) {
+            VectorConstant query = entry.getKey();
+            Set<Integer> approximateNeighbors = entry.getValue();
 
-    //         ArrayList<Object> paramList = new ArrayList<>();
-    //         // =====================
-    //         // Generating Parameters
-    //         // =====================
-    //         paramList.add(AnnBenchConstants.NUM_DIMENSION);
-    //         for (int i = 0; i < AnnBenchConstants.NUM_DIMENSION; i++) {
-    //             paramList.add(query.get(i));
-    //         }
+            ArrayList<Object> paramList = new ArrayList<>();
+            // =====================
+            // Generating Parameters
+            // =====================
+            paramList.add(AnnBenchConstants.NUM_DIMENSION);
+            for (int i = 0; i < AnnBenchConstants.NUM_DIMENSION; i++) {
+                paramList.add(query.get(i));
+            }
 
-    //         VanillaDbSpResultSet recallResultSet = (VanillaDbSpResultSet) conn.callStoredProc(AnnTransactionType.CALCULATE_RECALL.getProcedureId(), paramList.toArray());
-    //         Schema sch = recallResultSet.getSchema();
-    //         Record rec = recallResultSet.getRecords()[0];
+            VanillaDbSpResultSet recallResultSet = (VanillaDbSpResultSet) conn.callStoredProc(AnnTransactionType.CALCULATE_RECALL.getProcedureId(), paramList.toArray());
+            Schema sch = recallResultSet.getSchema();
+            Record rec = recallResultSet.getRecords()[0];
 
-    //         Set<Integer> trueNeighbors = new HashSet<>();
+            Set<Integer> trueNeighbors = new HashSet<>();
 
-    //         for (String fld : sch.fields()) {
-    //             if (fld.equals("rc")) {
-    //                 // For record count
-    //                 continue;
-    //             }
-    //             trueNeighbors.add((Integer) rec.getVal(fld).asJavaVal());
-    //         }
+            for (String fld : sch.fields()) {
+                if (fld.equals("rc")) {
+                    // For record count
+                    continue;
+                }
+                trueNeighbors.add((Integer) rec.getVal(fld).asJavaVal());
+            }
 
-    //         approximateNeighbors.retainAll(trueNeighbors);
-    //         double recallRate = (double) approximateNeighbors.size() / trueNeighbors.size();
+            approximateNeighbors.retainAll(trueNeighbors);
+            double recallRate = (double) approximateNeighbors.size() / trueNeighbors.size();
 
-    //         recallList.add(recallRate);
-    //     }
+            recallList.add(recallRate);
+        }
 
-    //     double sum = 0;
-    //     for (double recallRate : recallList) {
-    //         sum += recallRate;
-    //     }
-    //     double averageRecallRate = sum / recallList.size();
+        double sum = 0;
+        for (double recallRate : recallList) {
+            sum += recallRate;
+        }
+        double averageRecallRate = sum / recallList.size();
 
-    //     statMgr.setRecall(averageRecallRate);
-    //     statMgr.dumpResult(resultMap);
-	// }
+        statMgr.setRecall(averageRecallRate);
 
-    // public static void dumpResult() {
-    //     statMgr.dumpResult(resultMap);
-    // }
+        return averageRecallRate;
+	}
 }

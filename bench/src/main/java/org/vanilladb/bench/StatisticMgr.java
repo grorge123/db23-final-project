@@ -150,20 +150,6 @@ public class StatisticMgr {
 		resultSets.add(trs);
 	}
 
-	public void dumpResult(Map<VectorConstant, Set<Integer>> resultMap) {
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputDir, "nearest_neighbor_dump" + ".tsv")))) {
-			writer.write("query"+ "\t" + "neighbors");
-			writer.newLine();
-			int count = 0;
-			for (Entry<VectorConstant, Set<Integer>> result : resultMap.entrySet()) {
-				writer.write(count++ + "\t" + result.getKey().toString() + "\t" + result.getValue());
-				writer.newLine();
-			}
-		} catch(IOException e) {
-			System.out.println("Error dumping nearest neighbor results");
-		}
-	}
-
 	public synchronized void outputReport() {
 		try {
 			SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd-HHmmss"); // E.g. "20180524-200824"
@@ -212,10 +198,10 @@ public class StatisticMgr {
 						+ ", avg latency: " + avgResTimeMs + " ms");
 				writer.newLine();
 			}
-			// if (recall != -1) {
-			// 	writer.write("Recall: " + String.format("%.2f", recall * 100) + "%");
-			// 	writer.newLine();
-			// }
+			if (recall != -1) {
+				writer.write("Recall: " + String.format("%.2f", recall * 100) + "%");
+				writer.newLine();
+			}
 
 			// Last line: Total statistics
 			int finishedCount = totalTxnCount - abortedTotal;

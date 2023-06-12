@@ -412,7 +412,7 @@ public class Parser {
 
 				if (lex.matchDelim('<')) {
 					lex.eatDelim('<');
-					DistanceFn distFn;;
+					DistanceFn distFn;
 					if (lex.matchKeyword("cos")) {
 						lex.eatKeyword("cos");
 						distFn = new CosineFn(fld);
