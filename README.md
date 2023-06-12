@@ -2,6 +2,10 @@
 
 Can you extend a relational database system to support storing and querying over vectors?
 
+## Change Log
+
+- Recall calculation is now fast by assuming data fits in memory. However, you will not get any points by attempting to use the provided code for recall calculation.
+
 ## Steps
 
 1. Fork this project
