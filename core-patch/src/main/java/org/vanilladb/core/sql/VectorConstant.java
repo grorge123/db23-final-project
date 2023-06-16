@@ -157,6 +157,14 @@ public class VectorConstant extends Constant implements Serializable {
         throw new UnsupportedOperationException("Vector doesn't support addition");
     }
 
+    public void add(VectorConstant c) {
+        if(this.dimension() != c.dimension())
+            throw new UnsupportedOperationException("Vector doesn't support addition");
+        int dim = this.dimension();
+        for (int i = 0; i < dim; i++)
+            vec[i] = vec[i] + c.get(i);
+    }
+
     @Override
     public Constant sub(Constant c) {
         throw new UnsupportedOperationException("Vector doesn't support subtraction");
@@ -170,6 +178,13 @@ public class VectorConstant extends Constant implements Serializable {
     @Override
     public Constant div(Constant c) {
         throw new UnsupportedOperationException("Vector doesn't support division");
+    }
+
+    public VectorConstant div(Integer divisor) {
+        int dim = vec.length;
+        for (int i = 0; i < dim; i++)
+            vec[i] = vec[i] / divisor;
+        return new VectorConstant(vec);
     }
 
     @Override
