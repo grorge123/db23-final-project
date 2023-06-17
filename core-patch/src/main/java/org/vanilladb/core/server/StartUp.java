@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.vanilladb.core.query.planner.opt.KNNIndex;
 import org.vanilladb.core.remote.jdbc.JdbcStartUp;
 import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.sql.Type;
