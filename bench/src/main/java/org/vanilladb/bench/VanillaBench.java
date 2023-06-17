@@ -122,7 +122,9 @@ public class VanillaBench {
 			if (VanillaBenchParameters.BENCH_TYPE == BenchType.ANN) {
 				if (logger.isLoggable(Level.INFO))
 					logger.info("Calculating recall...");
-				calculateRecall(statMgr);
+				double recall = calculateRecall(statMgr);
+				if (logger.isLoggable(Level.INFO))
+					logger.info("Recall: " + recall);
 			}
 
 			if (VanillaBenchParameters.PROFILING_ON_SERVER) {
@@ -151,10 +153,10 @@ public class VanillaBench {
 			logger.info("benchmark process finished.");
 	}
 
-	private void calculateRecall(StatisticMgr statMgr) throws SQLException {
+	private double calculateRecall(StatisticMgr statMgr) throws SQLException {
 		SutConnection conn = getConnection();
 		AnnRte recallRte = new AnnRte(conn, statMgr, 0);
-		recallRte.executeCalculateRecall(conn);
+		return recallRte.executeCalculateRecall(conn);
 	}
 	
 	private SutDriver newDriver() {

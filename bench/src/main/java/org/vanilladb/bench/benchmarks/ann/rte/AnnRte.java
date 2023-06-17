@@ -23,7 +23,7 @@ public class AnnRte extends RemoteTerminalEmulator<AnnTransactionType>{
 
     private AnnTxExecutor executor;
 
-    static Map<VectorConstant, Set<Integer>> resultMap = new ConcurrentHashMap<>();
+    public static Map<VectorConstant, Set<Integer>> resultMap = new ConcurrentHashMap<>();
 
     public AnnRte(SutConnection conn, StatisticMgr statMgr, long sleepTime) {
         super(conn, statMgr, sleepTime);
@@ -41,7 +41,7 @@ public class AnnRte extends RemoteTerminalEmulator<AnnTransactionType>{
         return executor;
     }
 
-    public void executeCalculateRecall(SutConnection conn) throws SQLException {
+    public double executeCalculateRecall(SutConnection conn) throws SQLException {
 
         List<Double> recallList = new ArrayList<>();
 
@@ -86,5 +86,7 @@ public class AnnRte extends RemoteTerminalEmulator<AnnTransactionType>{
         double averageRecallRate = sum / recallList.size();
 
         statMgr.setRecall(averageRecallRate);
+
+        return averageRecallRate;
 	}
 }
