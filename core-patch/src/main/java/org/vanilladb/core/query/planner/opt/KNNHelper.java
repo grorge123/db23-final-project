@@ -28,6 +28,7 @@ import org.vanilladb.core.util.ByteHelper;
 
 import java.sql.Connection;
 import java.util.*;
+import org.vanilladb.core.query.planner.opt.Pair;
 
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
@@ -40,6 +41,7 @@ public class KNNHelper {
     private static Object tiLock = new Object();
     String embField = "i_emb";
     String fileName = "items";
+    String idField = "i_id";
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz){
@@ -188,6 +190,23 @@ public class KNNHelper {
         Constant reCon = rf.getVal(embField);
         int[] reConArray = (int[])reCon.asJavaVal();
         VectorConstant reVal = new VectorConstant(reConArray);
+        rf.close();
+        return reVal;
+    }
+    public Pair<VectorConstant, Constant> getVecAndId(RecordId recordId, Transaction tx){
+        if (ti == null) {
+            synchronized (tiLock) {
+                if (ti == null){
+                    ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
+                }
+            }
+        }
+        RecordFile rf = new RecordFile(ti, tx, true);
+        rf.moveToRecordId(recordId);
+        Constant reVecCon = rf.getVal(embField);
+        Constant reIdCon = rf.getVal(idField);
+        int[] reConArray = (int[])reVecCon.asJavaVal();
+        Pair<VectorConstant, Constant> reVal = new Pair<>(new VectorConstant(reConArray), reIdCon);
         rf.close();
         return reVal;
     }

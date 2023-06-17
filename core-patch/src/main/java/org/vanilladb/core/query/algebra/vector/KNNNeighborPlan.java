@@ -4,6 +4,7 @@ import org.vanilladb.core.query.algebra.Plan;
 import org.vanilladb.core.query.algebra.Scan;
 import org.vanilladb.core.query.algebra.materialize.SortPlan;
 import org.vanilladb.core.query.parse.QueryData;
+import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.sql.Schema;
 import org.vanilladb.core.sql.VectorConstant;
 import org.vanilladb.core.sql.distfn.DistanceFn;
@@ -28,7 +29,7 @@ public class KNNNeighborPlan implements Plan {
 
     @Override
     public Scan open() {
-        List<VectorConstant> lvc = VanillaDb.knnAlg.findKNN(distfn.getQuery(), tx);
+        List<Constant> lvc = VanillaDb.knnAlg.findKNN(distfn.getQuery(), tx);
         return new KNNNeighborScan(lvc, child.open());
     }
 

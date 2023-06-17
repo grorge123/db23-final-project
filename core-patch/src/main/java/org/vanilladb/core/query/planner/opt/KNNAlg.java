@@ -7,7 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-
+import org.vanilladb.core.query.planner.opt.Pair;
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.sql.Constant;
@@ -18,8 +18,15 @@ import org.vanilladb.core.sql.distfn.EuclideanFn;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
-
+import java.util.AbstractMap;
 public class KNNAlg{
+
+	// define pair structure
+	public class Pair<K, V> extends AbstractMap.SimpleEntry<K, V> {
+		public Pair(K key, V value) {
+			super(key, value);
+		}
+	}
     // Bench Setting
     private String tblName;
     private int numDimension, numItems, numNeighbors;
@@ -51,8 +58,7 @@ public class KNNAlg{
         if(curItems == numItems) KMeans(tx);
     }
 
-	public List<VectorConstant> findKNN(VectorConstant query, Transaction tx) {
-		System.out.println("Start Find");
+	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
@@ -79,13 +85,11 @@ public class KNNAlg{
 		Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gid));
 		List<RecordId> ridList = knnHelper.queryRecord(const_gid, tx);
 		int vecInGroup = ridList.size();
-		System.out.println("Center:" + gid + " " + groupCenter[gid] + " " + vecInGroup);
 
 		// 3. Search top K vector in the group
-		List<VectorConstant> knnVec = KSmallest(ridList, distFn, tx);
+		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
 
 
-		System.out.println("Finish Find:" + knnVec.size());
 		return knnVec;
 	}
 
@@ -121,7 +125,6 @@ public class KNNAlg{
 		int idx_it = 0, scan_it = 0;
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
-		//TODO check why not directly get vector // done
         while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
 				System.out.println("idxit = ");
@@ -142,7 +145,6 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector // done
 			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			distFn.setQueryVector(vec);
 
@@ -152,7 +154,6 @@ public class KNNAlg{
 				Double dist = distFn.distance(groupCenter[i]);
 				if(dist < minDist){
 					minDist = dist;
-					//TODO check after beforeFirst rid always equal // hope so
 					//TODO check could merge calculate center to here // further optim
 					groupId[rid] = i;
 				}
@@ -173,7 +174,6 @@ public class KNNAlg{
 		s.beforeFirst();
 		rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector // done
 			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			coordSum[groupId[rid]].add(vec);
 			memberCnt[groupId[rid]] ++;
@@ -193,8 +193,6 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector // done
-			//TODO check after beforeFirst rid always equal // hope so
 			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			VectorConstant center = groupCenter[groupId[rid]];
 			double sum = 0;
@@ -216,7 +214,6 @@ public class KNNAlg{
         s.beforeFirst();
 		int rid = 0;
         while (s.next()){
-			//TODO check after beforeFirst rid always equal // hope so
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupId[rid]));
 			knnHelper.updateGroupId(s.getRecordId(), gid, tx);
 			rid++;
@@ -239,19 +236,21 @@ public class KNNAlg{
 		centerLoaded = true;
 	}
 
-    private List<VectorConstant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
-		PriorityQueue<VectorConstant> maxHeap = new PriorityQueue<VectorConstant>(numNeighbors, (a, b) -> (int)(dfn.distance(b) - dfn.distance(a)));
+    private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
+		PriorityQueue<Pair<VectorConstant, Constant>> maxHeap =
+				new PriorityQueue<Pair<VectorConstant, Constant>>(numNeighbors, (a, b) -> (int)(dfn.distance(b.getKey()) - dfn.distance(a.getKey())));
 		for (RecordId rid : ridList) {
-			VectorConstant num= knnHelper.getVec(rid, tx);
+			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
+			Pair<VectorConstant, Constant> num = new Pair<>(tmp.getKey(), tmp.getValue());
 			maxHeap.offer(num);
 			if (maxHeap.size() > numNeighbors) {
 				maxHeap.poll();
 			}
 		}
 
-		List<VectorConstant> res = new ArrayList<>();
+		List<Constant> res = new ArrayList<>();
 		for (int i = 0; i < numNeighbors; i++) {
-			res.add(maxHeap.poll());
+			res.add(maxHeap.poll().getValue());
 		}
 		return res;
     }

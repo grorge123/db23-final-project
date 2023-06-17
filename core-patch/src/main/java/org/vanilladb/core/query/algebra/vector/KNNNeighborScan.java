@@ -9,10 +9,10 @@ import java.util.List;
 public class KNNNeighborScan implements Scan {
 
     Scan s;
-    List<VectorConstant> vector_list;
+    List<Constant> vector_list;
     int cur;
 
-    public KNNNeighborScan(List<VectorConstant> lck, Scan s) {
+    public KNNNeighborScan(List<Constant> lck, Scan s) {
         this.s = s;
         vector_list = lck;
         cur = -1;
