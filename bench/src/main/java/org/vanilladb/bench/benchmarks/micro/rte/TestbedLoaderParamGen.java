@@ -13,23 +13,23 @@
 //  * See the License for the specific language governing permissions and
 //  * limitations under the License.
 //  *******************************************************************************/
-// package org.vanilladb.bench.benchmarks.micro.rte;
+ package org.vanilladb.bench.benchmarks.micro.rte;
 
-// import org.vanilladb.bench.benchmarks.micro.MicrobenchTransactionType;
-// import org.vanilladb.bench.benchmarks.micro.MicrobenchConstants;
-// import org.vanilladb.bench.rte.TxParamGenerator;
+ import org.vanilladb.bench.benchmarks.micro.MicrobenchTransactionType;
+ import org.vanilladb.bench.benchmarks.micro.MicrobenchConstants;
+ import org.vanilladb.bench.rte.TxParamGenerator;
 
-// public class TestbedLoaderParamGen implements TxParamGenerator<MicrobenchTransactionType> {
+ public class TestbedLoaderParamGen implements TxParamGenerator<MicrobenchTransactionType> {
 
-// 	@Override
-// 	public MicrobenchTransactionType getTxnType() {
-// 		return MicrobenchTransactionType.TESTBED_LOADER;
-// 	}
+ 	@Override
+ 	public MicrobenchTransactionType getTxnType() {
+ 		return MicrobenchTransactionType.TESTBED_LOADER;
+ 	}
 
-// 	@Override
-// 	public Object[] generateParameter() {
-// 		// [# of items]
-// 		return new Object[] {MicrobenchConstants.NUM_ITEMS};
-// 	}
+ 	@Override
+ 	public Object[] generateParameter() {
+ 		// [# of items]
+ 		return new Object[] {MicrobenchConstants.NUM_ITEMS};
+ 	}
 
-// }
+ }
