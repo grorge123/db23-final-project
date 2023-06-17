@@ -61,7 +61,6 @@ public class Planner {
 	 * @return an integer denoting the number of affected records
 	 */
 	public int executeUpdate(String cmd, Transaction tx) {
-		System.out.println(cmd);
 		if (tx.isReadOnly())
 			throw new UnsupportedOperationException();
 		Parser parser = new Parser(cmd);

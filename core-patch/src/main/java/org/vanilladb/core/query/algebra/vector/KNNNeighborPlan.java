@@ -21,7 +21,7 @@ public class KNNNeighborPlan implements Plan {
 
     public KNNNeighborPlan(Plan p, DistanceFn distFn, Transaction _tx, QueryData _data) {
         this.distfn = distFn;
-        this.child = new SortPlan(p, distFn, tx);
+        this.child = new SortPlan(p, distFn, _tx);
         data = _data;
         tx = _tx;
     }

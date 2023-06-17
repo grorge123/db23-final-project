@@ -38,6 +38,7 @@ public class KNNHelper {
     private static String tbl, centerTbl;
     private static String originTble;
     private static TableInfo ti;
+    private static Object tiLock = new Object();
     String embField = "i_emb";
 
     // The table name which searched by KNN
@@ -54,10 +55,7 @@ public class KNNHelper {
             Transaction tx = VanillaDb.txMgr().newTransaction(
                     Connection.TRANSACTION_SERIALIZABLE, false);
             if(VanillaDb.catalogMgr().getTableInfo(tbl, tx) != null){
-                System.out.println("DEF");
                 return;
-            }else{
-                System.out.println("ASD");
             }
             IndexUpdatePlanner iup = new IndexUpdatePlanner();
             Schema sch = new Schema();
@@ -88,19 +86,16 @@ public class KNNHelper {
     }
 
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
-        System.out.println("updateGroupId:" + recordId.toString() + " " + groupId.toString());
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.BIGINT, ByteHelper.toBytes(recordId.block().number()));
         Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
         ConstantExpression test = new ConstantExpression(blockId);
-        System.out.println("TEST:" + test.toString() + " " + blockId.toString() + " " + recordId.block().number());
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("groupid", new ConstantExpression(groupId));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
         pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
         pred.conjunctWith(new Term(new FieldNameExpression("filename"), OP_EQ, new ConstantExpression(fileName)));
-        System.out.println(pred.toString());
         ModifyData md = new ModifyData(tbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0){
@@ -135,25 +130,19 @@ public class KNNHelper {
     }*/
 
     public void updateGroupCenter(Constant groupId, VectorConstant vec, Transaction tx){
-        UpdatePlanner up;
-        System.out.println("qwewqwe");
-        try {
-			up =  UpdatePlanner.class.newInstance();
+        IndexUpdatePlanner iup = new IndexUpdatePlanner();
 
-            Map<String, Expression> map = new HashMap<String, Expression>();
-            map.put("vector", new ConstantExpression(vec));
-            Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
-            ModifyData md = new ModifyData(centerTbl, map, pred);
-            int updateCount = up.executeModify(md, tx);
-            if(updateCount == 0) {
-                List<String> fields = Arrays.asList("groupid", "vector");
-                List<Constant> vals = Arrays.asList(groupId, vec);
-                InsertData ind = new InsertData(centerTbl, fields, vals);
-                up.executeInsert(ind, tx);
-            }
-		} catch (InstantiationException | IllegalAccessException e) {
-			e.printStackTrace();
-		}
+        Map<String, Expression> map = new HashMap<String, Expression>();
+        map.put("vector", new ConstantExpression(vec));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
+        ModifyData md = new ModifyData(centerTbl, map, pred);
+        int updateCount = iup.executeModify(md, tx);
+        if(updateCount == 0) {
+            List<String> fields = Arrays.asList("groupid", "vector");
+            List<Constant> vals = Arrays.asList(groupId, vec);
+            InsertData ind = new InsertData(centerTbl, fields, vals);
+            iup.executeInsert(ind, tx);
+        }
     }
 
     public List<VectorConstant> queryGroupCenters(Transaction tx){
@@ -183,7 +172,7 @@ public class KNNHelper {
         List<RecordId> reList = new ArrayList<RecordId>();
         while (s.next()){
             String filename = (String)s.getVal("filename").asJavaVal();
-            long blockId = (Long)s.getVal("blockid").asJavaVal();
+            long blockId = (Integer)s.getVal("blockid").asJavaVal();
             reList.add(new RecordId(new BlockId(filename, blockId), (int)s.getVal("recordid").asJavaVal()));
         }
         s.close();
@@ -191,7 +180,7 @@ public class KNNHelper {
     }
     public VectorConstant getVec(RecordId recordId, Transaction tx){
         if (ti == null) {
-            synchronized (ti) {
+            synchronized (tiLock) {
                 if (ti == null){
                     ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
                 }
@@ -200,7 +189,8 @@ public class KNNHelper {
         RecordFile rf = new RecordFile(ti, tx, true);
         rf.moveToRecordId(recordId);
         Constant reCon = rf.getVal(embField);
-        VectorConstant reVal = (VectorConstant)reCon.asJavaVal();
+        int[] reConArray = (int[])reCon.asJavaVal();
+        VectorConstant reVal = new VectorConstant(reConArray);
         rf.close();
         return reVal;
     }
