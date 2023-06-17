@@ -42,12 +42,11 @@ public class KNNHelper {
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz){
-            originTble = _tbl;
-            vecSz = _vecSz;
-            tbl = originTble + "indextable";
-            centerTbl = originTble + "centertable";
-            init();
-        }
+        originTble = _tbl;
+        vecSz = _vecSz;
+        tbl = originTble + "indextable";
+        centerTbl = originTble + "centertable";
+        init();
     }
     
     private synchronized void init(){
@@ -68,7 +67,7 @@ public class KNNHelper {
             Schema sch2 = new Schema();
             sch.addField("groupid", Type.INTEGER);
             sch.addField("vector", Type.VECTOR(vecSz));
-            CreateTableData ctd2 = new CreateTableData("centertable", sch2);
+            CreateTableData ctd2 = new CreateTableData(centerTbl, sch2);
             Verifier.verifyCreateTableData(ctd2, tx);
             iup.executeCreateTable(ctd2, tx);
 
@@ -135,6 +134,7 @@ public class KNNHelper {
             List<Constant> vals = Arrays.asList(groupId, vec);
             InsertData ind = new InsertData(centerTbl, fields, vals);
             up.executeInsert(ind, tx);
+            //TODO check Insert or Update?
 		} catch (InstantiationException | IllegalAccessException e) {
 			e.printStackTrace();
 		}
