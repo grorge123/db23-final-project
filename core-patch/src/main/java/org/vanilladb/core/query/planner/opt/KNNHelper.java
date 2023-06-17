@@ -136,7 +136,6 @@ public class KNNHelper {
         Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
         ModifyData md = new ModifyData(centerTbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
-        System.out.println("updateGroupId:" + groupId + " " + updateCount);
         if(updateCount == 0) {
             List<String> fields = Arrays.asList("groupid", "i_vector");
             List<Constant> vals = Arrays.asList(groupId, vec);

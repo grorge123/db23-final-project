@@ -59,13 +59,16 @@ public class KNNAlg{
     }
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
+		//TODO erase print time
+		long startTime = System.currentTimeMillis();
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
 
 		// 0. Load groupCenter if it's unloaded
 		loadCenters(tx);
-		
+		System.out.println("finish 0:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
+
 		// 1. Assign query vector to a group
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
@@ -80,16 +83,19 @@ public class KNNAlg{
 			}
 		}
 		s.close();
-		
+
+		System.out.println("finish 1:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		// 2. Calculate distance between query and all other vectors
 		Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gid));
 		List<RecordId> ridList = knnHelper.queryRecord(const_gid, tx);
 		int vecInGroup = ridList.size();
 
+		System.out.println("finish 2:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
 
 
+		System.out.println("finish 3:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		return knnVec;
 	}
 
@@ -121,14 +127,11 @@ public class KNNAlg{
             idxList.add(random.nextInt(numItems)+1);
 		Collections.sort(idxList);
 
-		System.out.println("before");
 		int idx_it = 0, scan_it = 0;
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
         while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
-				System.out.println("idxit = ");
-				System.out.println(idx_it);
 				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
 			}
@@ -250,7 +253,12 @@ public class KNNAlg{
 
 		List<Constant> res = new ArrayList<>();
 		for (int i = 0; i < numNeighbors; i++) {
-			res.add(maxHeap.poll().getValue());
+			// TODO need to handle group size < k
+			if(maxHeap.size() == 0){
+				res.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(2)));
+			}else{
+				res.add(maxHeap.poll().getValue());
+			}
 		}
 		return res;
     }
