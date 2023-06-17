@@ -2,6 +2,7 @@ package org.vanilladb.core.query.planner.opt;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.PriorityQueue;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
@@ -45,11 +46,13 @@ public class KNNAlg{
     }
    
     synchronized public void UpdateGroupId(Transaction tx){
+		//TODO last tx not commit but call KMeans
         curItems ++;
         if(curItems == numItems) KMeans(tx);
     }
 
 	public List<VectorConstant> findKNN(VectorConstant query, Transaction tx) {
+		System.out.println("Start Find");
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
@@ -76,37 +79,13 @@ public class KNNAlg{
 		Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gid));
 		List<RecordId> ridList = knnHelper.queryRecord(const_gid, tx);
 		int vecInGroup = ridList.size();
+		System.out.println("Center:" + gid + " " + groupCenter[gid] + " " + vecInGroup);
 
-		Double[] dist = new Double[vecInGroup];
-		int[] order = new int[vecInGroup];
-
-		for(int i=0; i<vecInGroup; i++)
-		{
-			VectorConstant vec = knnHelper.getVec(ridList.get(i), tx);
-			dist[i] = distFn.distance(vec);
-			order[i] = i; // default order. to be sorted.
-			//TODO check id may be repeated // done by using recordId
-		}
-		
 		// 3. Search top K vector in the group
-        KSmallest(dist, order, 0, vecInGroup - 1, numNeighbors);
+		List<VectorConstant> knnVec = KSmallest(ridList, distFn, tx);
 
-		// 4. Create List<VectorConstant> from top K idx list
-		Set<RecordId> knnRid = new LinkedHashSet<RecordId>();   
-		List<VectorConstant> knnVec = new ArrayList<VectorConstant>();
-		for(int i=0; i<numNeighbors; i++) 
-			knnRid.add(ridList.get(order[i]));
 
-		// int idx_it = 0, scan_it = 0;
-        s = (TableScan) p.open();
-        s.beforeFirst();
-        while (s.next()){
-			//TODO check after beforeFirst rid always equal // done
-			if(knnRid.contains(s.getRecordId()))
-				knnVec.add((VectorConstant) s.getVal(embField));
-        }
-        s.close();
-
+		System.out.println("Finish Find:" + knnVec.size());
 		return knnVec;
 	}
 
@@ -259,46 +238,21 @@ public class KNNAlg{
 		}
 		centerLoaded = true;
 	}
-	//TODO this best time complexity is O(N) worst time complexity is O(N^2)
-	// But heap sort time complexity worst time complexity is O(NlogK) where K is fix to 20.
-    private void KSmallest(Double[] arr, int[] order, int l, int r, int k) {
-		// Using quickselect algorithm
 
-        int pivot = Partition(arr, order, l, r);
-  
-        if (pivot < k - 1)
-            KSmallest(arr, order, pivot + 1, r, k);
-  
-        else if (pivot > k - 1)
-            KSmallest(arr, order, l, pivot - 1, k);
+    private List<VectorConstant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
+		PriorityQueue<VectorConstant> maxHeap = new PriorityQueue<VectorConstant>(numNeighbors, (a, b) -> (int)(dfn.distance(b) - dfn.distance(a)));
+		for (RecordId rid : ridList) {
+			VectorConstant num= knnHelper.getVec(rid, tx);
+			maxHeap.offer(num);
+			if (maxHeap.size() > numNeighbors) {
+				maxHeap.poll();
+			}
+		}
 
-		// end if (pivot == k - 1)
-    }
-	private int Partition(Double[] arr, int[] idx, int l, int r) {
-        Double pivot = arr[r];
-		int partition = l;
-        for (int i = l; i <= r; i++) {
-            if (arr[i] < pivot) {
-                Double tmpD = arr[i];
-                arr[i] = arr[partition];
-                arr[partition] = tmpD;
-
-				int tmpI = idx[i];
-				idx[i] = idx[partition];
-				idx[partition] = tmpI;
-
-                partition++;
-            }
-        }
-		
-		Double tmpD = arr[r];
-		arr[r] = arr[partition];
-		arr[partition] = tmpD;
-
-		int tmpI = idx[r];
-		idx[r] = idx[partition];
-		idx[partition] = tmpI;
-  
-        return partition;
+		List<VectorConstant> res = new ArrayList<>();
+		for (int i = 0; i < numNeighbors; i++) {
+			res.add(maxHeap.poll());
+		}
+		return res;
     }
 }

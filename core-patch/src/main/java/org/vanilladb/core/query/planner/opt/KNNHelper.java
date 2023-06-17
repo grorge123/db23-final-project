@@ -8,7 +8,6 @@ import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.query.parse.CreateIndexData;
 import org.vanilladb.core.query.parse.ModifyData;
 import org.vanilladb.core.query.parse.InsertData;
-import org.vanilladb.core.query.planner.UpdatePlanner;
 import org.vanilladb.core.query.planner.Verifier;
 import org.vanilladb.core.query.planner.index.IndexSelector;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
@@ -40,6 +39,7 @@ public class KNNHelper {
     private static TableInfo ti;
     private static Object tiLock = new Object();
     String embField = "i_emb";
+    String fileName = "items";
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz){
@@ -62,14 +62,13 @@ public class KNNHelper {
             sch.addField("groupid", Type.INTEGER);
             sch.addField("recordid", Type.INTEGER);
             sch.addField("blockid", Type.INTEGER);
-            sch.addField("filename", Type.VARCHAR(20));
             CreateTableData ctd = new CreateTableData(tbl, sch);
             Verifier.verifyCreateTableData(ctd, tx);
             iup.executeCreateTable(ctd, tx);
 
             Schema sch2 = new Schema();
             sch2.addField("groupid", Type.INTEGER);
-            sch2.addField("vector", Type.VECTOR(vecSz));
+            sch2.addField("i_vector", Type.VECTOR(vecSz));
             CreateTableData ctd2 = new CreateTableData(centerTbl, sch2);
             Verifier.verifyCreateTableData(ctd2, tx);
             iup.executeCreateTable(ctd2, tx);
@@ -77,7 +76,7 @@ public class KNNHelper {
             CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
             Verifier.verifyCreateIndexData(cid, tx);
             iup.executeCreateIndex(cid, tx);
-            cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid", "filename"), IndexType.BTREE);
+            cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid"), IndexType.BTREE);
             Verifier.verifyCreateIndexData(cid, tx);
             iup.executeCreateIndex(cid, tx);
             tx.commit();
@@ -88,19 +87,17 @@ public class KNNHelper {
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.BIGINT, ByteHelper.toBytes(recordId.block().number()));
-        Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
         ConstantExpression test = new ConstantExpression(blockId);
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("groupid", new ConstantExpression(groupId));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
         pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
-        pred.conjunctWith(new Term(new FieldNameExpression("filename"), OP_EQ, new ConstantExpression(fileName)));
         ModifyData md = new ModifyData(tbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0){
-            List<String> fields = Arrays.asList("groupid", "recordid", "blockid", "filename");
-            List<Constant> vals = Arrays.asList(groupId, recordIdId, blockId, fileName);
+            List<String> fields = Arrays.asList("groupid", "recordid", "blockid");
+            List<Constant> vals = Arrays.asList(groupId, recordIdId, blockId);
             InsertData ind = new InsertData(tbl, fields, vals);
             iup.executeInsert(ind, tx);
         }
@@ -133,12 +130,13 @@ public class KNNHelper {
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
 
         Map<String, Expression> map = new HashMap<String, Expression>();
-        map.put("vector", new ConstantExpression(vec));
+        map.put("i_vector", new ConstantExpression(vec));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
         ModifyData md = new ModifyData(centerTbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
+        System.out.println("updateGroupId:" + groupId + " " + updateCount);
         if(updateCount == 0) {
-            List<String> fields = Arrays.asList("groupid", "vector");
+            List<String> fields = Arrays.asList("groupid", "i_vector");
             List<Constant> vals = Arrays.asList(groupId, vec);
             InsertData ind = new InsertData(centerTbl, fields, vals);
             iup.executeInsert(ind, tx);
@@ -152,7 +150,7 @@ public class KNNHelper {
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
         while (s.next()){
-			groupCenters.add((VectorConstant) s.getVal("vector"));
+			groupCenters.add((VectorConstant) s.getVal("i_vector"));
         }
         s.close();
 
@@ -171,9 +169,8 @@ public class KNNHelper {
         s.beforeFirst();
         List<RecordId> reList = new ArrayList<RecordId>();
         while (s.next()){
-            String filename = (String)s.getVal("filename").asJavaVal();
             long blockId = (Integer)s.getVal("blockid").asJavaVal();
-            reList.add(new RecordId(new BlockId(filename, blockId), (int)s.getVal("recordid").asJavaVal()));
+            reList.add(new RecordId(new BlockId(fileName, blockId), (int)s.getVal("recordid").asJavaVal()));
         }
         s.close();
         return  reList;
