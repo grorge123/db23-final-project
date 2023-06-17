@@ -2,8 +2,10 @@ package org.vanilladb.core.query.planner.opt;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
@@ -76,36 +78,32 @@ public class KNNAlg{
 		int vecInGroup = ridList.size();
 
 		Double[] dist = new Double[vecInGroup];
-		int[] id = new int[vecInGroup];
+		int[] order = new int[vecInGroup];
 
 		for(int i=0; i<vecInGroup; i++)
 		{
 			VectorConstant vec = knnHelper.getVec(ridList.get(i), tx);
 			dist[i] = distFn.distance(vec);
-			//TODO check id may be repeat
-			id[i] = ridList.get(i).id();
+			order[i] = i; // default order. to be sorted.
+			//TODO check id may be repeated // done by using recordId
 		}
 		
 		// 3. Search top K vector in the group
-        KSmallest(dist, id, 0, vecInGroup - 1, numNeighbors);
+        KSmallest(dist, order, 0, vecInGroup - 1, numNeighbors);
 
 		// 4. Create List<VectorConstant> from top K idx list
-		List<Integer> idxList = new ArrayList<Integer>();
+		Set<RecordId> knnRid = new LinkedHashSet<RecordId>();   
 		List<VectorConstant> knnVec = new ArrayList<VectorConstant>();
-		for(int i=0; i<numNeighbors; i++)
-            idxList.add(id[i]);
-		Collections.sort(idxList);
+		for(int i=0; i<numNeighbors; i++) 
+			knnRid.add(ridList.get(order[i]));
 
-		int idx_it = 0, scan_it = 0;
+		// int idx_it = 0, scan_it = 0;
         s = (TableScan) p.open();
         s.beforeFirst();
         while (s.next()){
-			//TODO check after beforeFirst rid always equal
-			if(scan_it == idxList.get(idx_it)) {
-				idx_it ++;
+			//TODO check after beforeFirst rid always equal // done
+			if(knnRid.contains(s.getRecordId()))
 				knnVec.add((VectorConstant) s.getVal(embField));
-			}
-			scan_it ++;
         }
         s.close();
 
@@ -135,7 +133,6 @@ public class KNNAlg{
         // Further Optim: using K-Means++ method. Reference to calculateWeighedCentroid().
 
 		List<Integer> idxList = new ArrayList<Integer>();
-		List<RecordId> ridList = new ArrayList<RecordId>();
        
 		for(int i=0; i<numGroups; i++)
             idxList.add(random.nextInt(numItems)+1);
@@ -144,18 +141,15 @@ public class KNNAlg{
 		int idx_it = 0, scan_it = 0;
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
-		//TODO check why not directly get vector
+		//TODO check why not directly get vector // done
         while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
+				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
-				ridList.add(s.getRecordId());
 			}
 			scan_it ++;
         }
         s.close();
-
-        for(int i=0; i<numGroups; i++)
-            groupCenter[i] = knnHelper.getVec(ridList.get(i), tx);
     }
 
 	private void KMeans_update(TablePlan p, int[] groupId, DistanceFn distFn, Transaction tx) {
@@ -164,8 +158,8 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector
-			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
+			//TODO check why not directly get vector // done
+			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			distFn.setQueryVector(vec);
 
 			Double minDist = Double.MAX_VALUE;
@@ -174,8 +168,8 @@ public class KNNAlg{
 				Double dist = distFn.distance(groupCenter[i]);
 				if(dist < minDist){
 					minDist = dist;
-					//TODO check after beforeFirst rid always equal
-					//TODO check could merge calculate center to here
+					//TODO check after beforeFirst rid always equal // hope so
+					//TODO check could merge calculate center to here // further optim
 					groupId[rid] = i;
 				}
 			}
@@ -195,8 +189,8 @@ public class KNNAlg{
 		s.beforeFirst();
 		rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector
-			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
+			//TODO check why not directly get vector // done
+			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			coordSum[groupId[rid]].add(vec);
 			memberCnt[groupId[rid]] ++;
 			rid++;
@@ -215,8 +209,8 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
-			//TODO check why not directly get vector
-			//TODO check after beforeFirst rid always equal
+			//TODO check why not directly get vector // done
+			//TODO check after beforeFirst rid always equal // hope so
 			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
 			VectorConstant center = groupCenter[groupId[rid]];
 			double sum = 0;
@@ -238,7 +232,7 @@ public class KNNAlg{
         s.beforeFirst();
 		int rid = 0;
         while (s.next()){
-			//TODO check after beforeFirst rid always equal
+			//TODO check after beforeFirst rid always equal // hope so
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupId[rid]));
 			knnHelper.updateGroupId(s.getRecordId(), gid, tx);
 			rid++;
@@ -262,16 +256,16 @@ public class KNNAlg{
 	}
 	//TODO this best time complexity is O(N) worst time complexity is O(N^2)
 	// But heap sort time complexity worst time complexity is O(NlogK) where K is fix to 20.
-    private void KSmallest(Double[] arr, int[] idx, int l, int r, int k) {
+    private void KSmallest(Double[] arr, int[] order, int l, int r, int k) {
 		// Using quickselect algorithm
 
-        int pivot = Partition(arr, idx, l, r);
+        int pivot = Partition(arr, order, l, r);
   
         if (pivot < k - 1)
-            KSmallest(arr, idx, pivot + 1, r, k);
+            KSmallest(arr, order, pivot + 1, r, k);
   
         else if (pivot > k - 1)
-            KSmallest(arr, idx, l, pivot - 1, k);
+            KSmallest(arr, order, l, pivot - 1, k);
 
 		// end if (pivot == k - 1)
     }
