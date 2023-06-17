@@ -64,7 +64,7 @@ public class KNNHelper {
             sch.addField("groupid", Type.INTEGER);
             sch.addField("recordid", Type.INTEGER);
             sch.addField("blockid", Type.INTEGER);
-            sch.addField("filename", Type.VARCHAR);
+            sch.addField("filename", Type.VARCHAR(20));
             CreateTableData ctd = new CreateTableData(tbl, sch);
             Verifier.verifyCreateTableData(ctd, tx);
             iup.executeCreateTable(ctd, tx);
@@ -88,16 +88,19 @@ public class KNNHelper {
     }
 
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
-        System.out.println("qwewqwe123");
+        System.out.println("updateGroupId:" + recordId.toString() + " " + groupId.toString());
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
-        Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
+        Constant blockId = Constant.newInstance(Type.BIGINT, ByteHelper.toBytes(recordId.block().number()));
         Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
+        ConstantExpression test = new ConstantExpression(blockId);
+        System.out.println("TEST:" + test.toString() + " " + blockId.toString() + " " + recordId.block().number());
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("groupid", new ConstantExpression(groupId));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
         pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
         pred.conjunctWith(new Term(new FieldNameExpression("filename"), OP_EQ, new ConstantExpression(fileName)));
+        System.out.println(pred.toString());
         ModifyData md = new ModifyData(tbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0){
@@ -137,11 +140,17 @@ public class KNNHelper {
         try {
 			up =  UpdatePlanner.class.newInstance();
 
-            List<String> fields = Arrays.asList("groupid", "vector");
-            List<Constant> vals = Arrays.asList(groupId, vec);
-            InsertData ind = new InsertData(centerTbl, fields, vals);
-            up.executeInsert(ind, tx);
-            //TODO check Insert or Update?
+            Map<String, Expression> map = new HashMap<String, Expression>();
+            map.put("vector", new ConstantExpression(vec));
+            Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
+            ModifyData md = new ModifyData(centerTbl, map, pred);
+            int updateCount = up.executeModify(md, tx);
+            if(updateCount == 0) {
+                List<String> fields = Arrays.asList("groupid", "vector");
+                List<Constant> vals = Arrays.asList(groupId, vec);
+                InsertData ind = new InsertData(centerTbl, fields, vals);
+                up.executeInsert(ind, tx);
+            }
 		} catch (InstantiationException | IllegalAccessException e) {
 			e.printStackTrace();
 		}

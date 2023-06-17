@@ -139,16 +139,21 @@ public class KNNAlg{
             idxList.add(random.nextInt(numItems)+1);
 		Collections.sort(idxList);
 
+		System.out.println("before");
 		int idx_it = 0, scan_it = 0;
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
 		//TODO check why not directly get vector // done
         while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
+				System.out.println("idxit = ");
+				System.out.println(idx_it);
 				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
 			}
+			if(idx_it == numGroups) break;
 			scan_it ++;
+
         }
         s.close();
     }
