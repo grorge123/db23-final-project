@@ -212,7 +212,7 @@ public class VanillaDb {
 	}
 
 	public static void initKnnAlg() {
-		knnAlg = new KNNAlg("items", 8, 100000, 20);
+		knnAlg = new KNNAlg("items", 48, 10000, 20);
 	}
 
 	/**

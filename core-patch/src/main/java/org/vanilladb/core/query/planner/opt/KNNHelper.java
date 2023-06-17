@@ -54,6 +54,7 @@ public class KNNHelper {
             Transaction tx = VanillaDb.txMgr().newTransaction(
                     Connection.TRANSACTION_SERIALIZABLE, false);
             if(VanillaDb.catalogMgr().getTableInfo(tbl, tx) != null){
+                System.out.println("DEF");
                 return;
             }else{
                 System.out.println("ASD");
@@ -69,8 +70,8 @@ public class KNNHelper {
             iup.executeCreateTable(ctd, tx);
 
             Schema sch2 = new Schema();
-            sch.addField("groupid", Type.INTEGER);
-            sch.addField("vector", Type.VECTOR(vecSz));
+            sch2.addField("groupid", Type.INTEGER);
+            sch2.addField("vector", Type.VECTOR(vecSz));
             CreateTableData ctd2 = new CreateTableData(centerTbl, sch2);
             Verifier.verifyCreateTableData(ctd2, tx);
             iup.executeCreateTable(ctd2, tx);
@@ -87,6 +88,7 @@ public class KNNHelper {
     }
 
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
+        System.out.println("qwewqwe123");
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.block().number()));
         Constant fileName = Constant.newInstance(Type.INTEGER, recordId.block().fileName().getBytes());
@@ -131,6 +133,7 @@ public class KNNHelper {
 
     public void updateGroupCenter(Constant groupId, VectorConstant vec, Transaction tx){
         UpdatePlanner up;
+        System.out.println("qwewqwe");
         try {
 			up =  UpdatePlanner.class.newInstance();
 

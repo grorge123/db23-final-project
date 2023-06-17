@@ -46,6 +46,7 @@ public class KNNAlg{
    
     synchronized public void UpdateGroupId(Transaction tx){
         curItems ++;
+		System.out.println("Test"+ curItems + " " + numItems);
         if(curItems == numItems) KMeans(tx);
     }
 
