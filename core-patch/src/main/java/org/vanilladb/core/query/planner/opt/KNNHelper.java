@@ -34,26 +34,30 @@ import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
 
 public class KNNHelper {
     private static boolean isInit = false;
-    int vecSz;
-    String tbl, centerTbl;
-    String originTble;
-    TableInfo ti;
+    private static int vecSz;
+    private static String tbl, centerTbl;
+    private static String originTble;
+    private static TableInfo ti;
     String embField = "i_emb";
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz){
-        originTble = _tbl;
-        vecSz = _vecSz;
-        tbl = originTble + "indextable";
-        centerTbl = originTble + "centertable";
-        init();
+        init(_tbl, _vecSz);
     }
     
-    private synchronized void init(){
+    private synchronized void init(String _tbl, int _vecSz){
         if(!isInit){
+            originTble = _tbl;
+            vecSz = _vecSz;
+            tbl = originTble + "indextable";
+            centerTbl = originTble + "centertable";
             Transaction tx = VanillaDb.txMgr().newTransaction(
                     Connection.TRANSACTION_SERIALIZABLE, false);
-            ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
+            if(VanillaDb.catalogMgr().getTableInfo(tbl, tx) != null){
+                return;
+            }else{
+                System.out.println("ASD");
+            }
             IndexUpdatePlanner iup = new IndexUpdatePlanner();
             Schema sch = new Schema();
             sch.addField("groupid", Type.INTEGER);
@@ -174,6 +178,13 @@ public class KNNHelper {
         return  reList;
     }
     public VectorConstant getVec(RecordId recordId, Transaction tx){
+        if (ti == null) {
+            synchronized (ti) {
+                if (ti == null){
+                    ti = VanillaDb.catalogMgr().getTableInfo(originTble, tx);
+                }
+            }
+        }
         RecordFile rf = new RecordFile(ti, tx, true);
         rf.moveToRecordId(recordId);
         Constant reCon = rf.getVal(embField);

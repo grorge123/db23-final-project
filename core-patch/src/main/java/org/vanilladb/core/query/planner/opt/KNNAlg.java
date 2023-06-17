@@ -211,7 +211,7 @@ public class KNNAlg{
 		while (s.next()){
 			//TODO check why not directly get vector // done
 			//TODO check after beforeFirst rid always equal // hope so
-			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
+			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			VectorConstant center = groupCenter[groupId[rid]];
 			double sum = 0;
 			for (int i = 0; i < vec.dimension(); i++) {

@@ -122,7 +122,6 @@ public class VanillaDb {
 		initTaskMgr();
 		initTxMgr();
 
-		initKnnAlg();
 
 		// the first transaction for initializing the system
 		Transaction initTx = txMgr.newTransaction(Connection.TRANSACTION_SERIALIZABLE, false);
@@ -162,6 +161,7 @@ public class VanillaDb {
 
 		// finish initialization
 		inited = true;
+		initKnnAlg();
 	}
 
 	/**
