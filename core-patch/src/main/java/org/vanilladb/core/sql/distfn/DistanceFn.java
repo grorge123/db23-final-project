@@ -25,6 +25,10 @@ public abstract class DistanceFn {
 
     protected abstract double calculateDistance(VectorConstant vec);
 
+    public VectorConstant getQuery() {
+        return query;
+    }
+
     public String fieldName() {
         return fieldName;
     }

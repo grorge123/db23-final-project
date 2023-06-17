@@ -28,6 +28,7 @@ import org.vanilladb.core.query.planner.QueryPlanner;
 import org.vanilladb.core.query.planner.UpdatePlanner;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
 import org.vanilladb.core.query.planner.opt.HeuristicQueryPlanner;
+import org.vanilladb.core.query.planner.opt.KNNAlg;
 import org.vanilladb.core.query.planner.opt.TrueKNNQueryPlanner;
 import org.vanilladb.core.server.task.TaskMgr;
 import org.vanilladb.core.sql.storedprocedure.SampleStoredProcedureFactory;
@@ -72,6 +73,7 @@ public class VanillaDb {
 	// Utility classes
 	private static StoredProcedureFactory spFactory;
 	private static Profiler profiler;
+	public static KNNAlg knnAlg;
 
 	/**
 	 * Initialization Flag
@@ -119,6 +121,8 @@ public class VanillaDb {
 		initFileAndLogMgr(dirName);
 		initTaskMgr();
 		initTxMgr();
+
+		initKnnAlg();
 
 		// the first transaction for initializing the system
 		Transaction initTx = txMgr.newTransaction(Connection.TRANSACTION_SERIALIZABLE, false);
@@ -205,6 +209,10 @@ public class VanillaDb {
 	 */
 	public static void initTxMgr() {
 		txMgr = new TransactionMgr();
+	}
+
+	public static void initKnnAlg() {
+		knnAlg = new KNNAlg("items", 8, 100000, 20);
 	}
 
 	/**

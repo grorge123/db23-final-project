@@ -86,6 +86,9 @@ public class IndexUpdatePlanner implements UpdatePlanner {
 		}
 		
 		VanillaDb.statMgr().countRecordUpdates(data.tableName(), 1);
+
+		VanillaDb.knnAlg.UpdateGroupId(tx);
+
 		return 1;
 	}
 

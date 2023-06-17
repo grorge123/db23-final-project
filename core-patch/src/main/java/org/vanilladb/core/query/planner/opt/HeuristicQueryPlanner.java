@@ -57,7 +57,7 @@ public class HeuristicQueryPlanner implements QueryPlanner {
 			id += 1;
 		}
 		// Step 2: Choose the lowest-size plan to begin the trunk of join
-		Plan trunk = getLowestSelectPlan();
+		Plan trunk = getLowestSelectPlan(data);
 		// Step 3: Repeatedly add a plan to the join trunk
 		while (!tablePlanners.isEmpty() || !views.isEmpty()) {
 			Plan p = getLowestJoinPlan(trunk);
@@ -90,12 +90,12 @@ public class HeuristicQueryPlanner implements QueryPlanner {
 		return trunk;
 	}
 
-	private Plan getLowestSelectPlan() {
+	private Plan getLowestSelectPlan(QueryData data) {
 		TablePlanner bestTp = null;
 		Plan bestPlan = null;
 		Plan bestView = null;
 		for (TablePlanner tp : tablePlanners) {
-			Plan plan = tp.makeSelectPlan();
+			Plan plan = tp.makeKNNSelectPlan(data);
 			if (bestPlan == null
 					|| plan.recordsOutput() < bestPlan.recordsOutput()) {
 				bestTp = tp;
