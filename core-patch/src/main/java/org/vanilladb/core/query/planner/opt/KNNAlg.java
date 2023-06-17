@@ -82,6 +82,7 @@ public class KNNAlg{
 		{
 			VectorConstant vec = knnHelper.getVec(ridList.get(i), tx);
 			dist[i] = distFn.distance(vec);
+			//TODO check id may be repeat
 			id[i] = ridList.get(i).id();
 		}
 		
@@ -99,6 +100,7 @@ public class KNNAlg{
         s = (TableScan) p.open();
         s.beforeFirst();
         while (s.next()){
+			//TODO check after beforeFirst rid always equal
 			if(scan_it == idxList.get(idx_it)) {
 				idx_it ++;
 				knnVec.add((VectorConstant) s.getVal(embField));
@@ -142,6 +144,7 @@ public class KNNAlg{
 		int idx_it = 0, scan_it = 0;
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
+		//TODO check why not directly get vector
         while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
 				idx_it ++;
@@ -161,6 +164,7 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
+			//TODO check why not directly get vector
 			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
 			distFn.setQueryVector(vec);
 
@@ -170,6 +174,8 @@ public class KNNAlg{
 				Double dist = distFn.distance(groupCenter[i]);
 				if(dist < minDist){
 					minDist = dist;
+					//TODO check after beforeFirst rid always equal
+					//TODO check could merge calculate center to here
 					groupId[rid] = i;
 				}
 			}
@@ -189,6 +195,7 @@ public class KNNAlg{
 		s.beforeFirst();
 		rid = 0;
 		while (s.next()){
+			//TODO check why not directly get vector
 			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
 			coordSum[groupId[rid]].add(vec);
 			memberCnt[groupId[rid]] ++;
@@ -208,6 +215,8 @@ public class KNNAlg{
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
+			//TODO check why not directly get vector
+			//TODO check after beforeFirst rid always equal
 			VectorConstant vec = knnHelper.getVec(s.getRecordId(), tx);
 			VectorConstant center = groupCenter[groupId[rid]];
 			double sum = 0;
@@ -229,6 +238,7 @@ public class KNNAlg{
         s.beforeFirst();
 		int rid = 0;
         while (s.next()){
+			//TODO check after beforeFirst rid always equal
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupId[rid]));
 			knnHelper.updateGroupId(s.getRecordId(), gid, tx);
 			rid++;
@@ -241,6 +251,7 @@ public class KNNAlg{
 		}
     }
 
+	//TODO change to synchronize centerLoaded or lock
 	private synchronized static void loadCenters(Transaction tx) {
 		if(!centerLoaded) 
 		{
@@ -249,6 +260,8 @@ public class KNNAlg{
 		}
 		centerLoaded = true;
 	}
+	//TODO this best time complexity is O(N) worst time complexity is O(N^2)
+	// But heap sort time complexity worst time complexity is O(NlogK) where K is fix to 20.
     private void KSmallest(Double[] arr, int[] idx, int l, int r, int k) {
 		// Using quickselect algorithm
 
