@@ -33,5 +33,5 @@ static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
         
         return Math.sqrt(sum_d);
     }
-    
+
 }

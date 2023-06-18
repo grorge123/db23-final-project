@@ -33,8 +33,8 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 1;
-	private static Double tolerence = 0.0;
+	private static int numGroups = 4;
+	private static int maxIter = 200;
 
 	// Utils
 	private static boolean centerLoaded = false;
@@ -86,7 +86,6 @@ public class KNNAlg{
 	}
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
-		//TODO erase print time
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
@@ -126,12 +125,15 @@ public class KNNAlg{
 		int[] groupId = new int[numItems];
 
 		KMeans_init(p, tx);
-
+		int cnt = 0;
 		while(true) {
 			KMeans_update(p, groupId, distFn, tx);
 			error = KMeans_calError(p, groupId, tx);
-			if(error - prev_error <= tolerence) break;
+			// if(error - prev_error <= tolerence) break;
+			if(cnt >= maxIter) break;
+			cnt++;
 			prev_error = error;
+			System.out.println("error of " + cnt +": " + error/numItems + "cc0: " + groupCenter[0]);
 		}
 
 		KMeans_store(p, groupId, tx);
