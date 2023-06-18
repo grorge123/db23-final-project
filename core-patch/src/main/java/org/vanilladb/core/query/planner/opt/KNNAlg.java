@@ -22,23 +22,19 @@ import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
 import org.vanilladb.core.util.CoreProperties;
 
-import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.lang.Thread;
 
 public class KNNAlg{
 
-	// define pair structure
-	public class Pair<K, V> extends AbstractMap.SimpleEntry<K, V> {
-		public Pair(K key, V value) {
-			super(key, value);
-		}
-	}
+
 	// Bench Setting
 	private String tblName;
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 5000);
+	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
 	private static int maxIter = 500;
 
 	// Utils
@@ -99,26 +95,33 @@ public class KNNAlg{
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
 
-		PriorityQueue<Pair<Double, Integer>> minHeap =
-				new PriorityQueue<Pair<Double, Integer>>(numGroups, (a, b) -> (a.getKey() > b.getKey() ? 1 : -1));
+//		PriorityQueue<Pair<Double, Integer>> minHeap =
+//				new PriorityQueue<Pair<Double, Integer>>(numGroups, (a, b) -> (a.getKey() > b.getKey() ? 1 : -1));
+		Pair<Double, Integer>[] arr = new Pair[numGroups];
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
 		for(int i = 0; i < numGroups; i++){
 			Double dist = distFn.distance(groupCenter[i]);
 			Pair<Double, Integer> num = new Pair<>(dist, i);
-			minHeap.offer(num);
+			arr[i] = new Pair<>(dist, i);
+//			minHeap.offer(num);
 		}
 		s.close();
 
+		Comparator<Pair<Double, Integer>> pairComparator = Comparator.comparing(Pair::getKey);
+		Arrays.parallelSort(arr, pairComparator);
 		// 2. Calculate distance between query and all other vectors
 		List<RecordId> ridList = new ArrayList<>();
+		int idx = 0;
 		while (ridList.size() < numNeighbors){
-			Pair<Double, Integer> gp = minHeap.poll();
+//			Pair<Double, Integer> gp = minHeap.poll();
+			Pair<Double, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
 			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
 			for(int i = 0 ; i < tmpList.size() ; i++){
 				ridList.add(tmpList.get(i));
 			}
+			System.out.println(gp.getKey() + " " + idx + " " + numGroups + " " + numItems + " " + tmpList.size());
 		}
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
@@ -298,6 +301,7 @@ public class KNNAlg{
 			// TODO need to handle group size < k
 			if(minHeap.size() == 0){
 				res.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(2)));
+				System.out.println("ERROR: Not found in group!");
 			}else{
 				Pair<Double, Constant> id = minHeap.poll();
 				res.add(id.getValue());
