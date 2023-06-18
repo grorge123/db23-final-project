@@ -20,6 +20,8 @@ import org.vanilladb.core.sql.distfn.EuclideanFn;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
+import org.vanilladb.core.util.CoreProperties;
+
 import java.util.AbstractMap;
 import java.lang.Thread;
 
@@ -36,7 +38,7 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 1000;
+	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 1);
 	private static int maxIter = 500;
 
 	// Utils

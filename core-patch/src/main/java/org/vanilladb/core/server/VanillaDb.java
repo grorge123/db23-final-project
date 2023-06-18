@@ -212,7 +212,10 @@ public class VanillaDb {
 	}
 
 	public static void initKnnAlg() {
-		knnAlg = new KNNAlg("items", 48, 10000, 20);
+		int dimension = CoreProperties.getLoader().getPropertyAsInteger(VanillaDb.class.getName() + ".NUM_DIMENSIONS", 48);
+		int items = CoreProperties.getLoader().getPropertyAsInteger(VanillaDb.class.getName() + ".NUM_ITEMS", 10000);
+		int neighs = CoreProperties.getLoader().getPropertyAsInteger(VanillaDb.class.getName() + ".NUM_NEIGHBORS", 20);
+		knnAlg = new KNNAlg("items", dimension, items, neighs);
 	}
 
 	/**
