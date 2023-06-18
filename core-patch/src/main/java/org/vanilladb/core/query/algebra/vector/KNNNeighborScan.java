@@ -7,20 +7,16 @@ import org.vanilladb.core.sql.VectorConstant;
 import java.util.List;
 
 public class KNNNeighborScan implements Scan {
-
-    Scan s;
     List<Constant> vector_list;
     int cur;
 
-    public KNNNeighborScan(List<Constant> lck, Scan s) {
-        this.s = s;
+    public KNNNeighborScan(List<Constant> lck) {
         vector_list = lck;
         cur = -1;
     }
 
     @Override
     public void beforeFirst() {
-        s.beforeFirst();
         cur = -1;
     }
 
@@ -32,12 +28,12 @@ public class KNNNeighborScan implements Scan {
 
     @Override
     public void close() {
-        s.close();
+
     }
 
     @Override
     public boolean hasField(String fldName) {
-        return s.hasField(fldName);
+        return fldName == "i_id";
     }
 
     @Override

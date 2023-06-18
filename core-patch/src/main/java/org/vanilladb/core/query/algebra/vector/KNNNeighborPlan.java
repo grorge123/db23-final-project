@@ -16,21 +16,19 @@ import java.util.List;
 
 public class KNNNeighborPlan implements Plan {
     private Plan child;
-    private QueryData data;
     private Transaction tx;
     private DistanceFn distfn;
 
-    public KNNNeighborPlan(Plan p, DistanceFn distFn, Transaction _tx, QueryData _data) {
+    public KNNNeighborPlan(Plan p, DistanceFn distFn, Transaction _tx) {
         this.distfn = distFn;
         this.child = new SortPlan(p, distFn, _tx);
-        data = _data;
         tx = _tx;
     }
 
     @Override
     public Scan open() {
         List<Constant> lvc = VanillaDb.knnAlg.findKNN(distfn.getQuery(), tx);
-        return new KNNNeighborScan(lvc, child.open());
+        return new KNNNeighborScan(lvc);
     }
 
     @Override

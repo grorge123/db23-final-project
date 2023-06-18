@@ -132,7 +132,7 @@ class TablePlanner {
 			p = tp;
 		p = addSelectPredicate(p);
 		if (embField != null) {
-			p = new KNNNeighborPlan(p, embField, tx, data);
+			p = new KNNNeighborPlan(p, embField, tx);
 		}
 		return p;
 	}

@@ -27,36 +27,37 @@ public class KNNAlg{
 			super(key, value);
 		}
 	}
-    // Bench Setting
-    private String tblName;
-    private int numDimension, numItems, numNeighbors;
+	// Bench Setting
+	private String tblName;
+	private int numDimension, numItems, numNeighbors;
 
-    // Hyper Parameters
-    private static int numGroups = 3;
-    private static Double tolerence = 0.0;
+	// Hyper Parameters
+	private static int numGroups = 3;
+	private static Double tolerence = 0.0;
 
-    // Utils
+	// Utils
 	private static boolean centerLoaded = false;
 	private static int curItems = 0;
-	private static VectorConstant[] groupCenter = new VectorConstant[numGroups];
+	private static VectorConstant[] groupCenter;
+	private static Object initGroupCenter = new Object();
 	private static KNNHelper knnHelper;
 
 	private String embField = "i_emb";
 	private Random random = new Random();
-    
-    public KNNAlg(String _tblName, int _numDimension, int _numItems, int _numNeighbors) {
-        tblName = _tblName;
-        numDimension = _numDimension;
-        numItems = _numItems;
+
+	public KNNAlg(String _tblName, int _numDimension, int _numItems, int _numNeighbors) {
+		tblName = _tblName;
+		numDimension = _numDimension;
+		numItems = _numItems;
 		numNeighbors = _numNeighbors;
-        knnHelper = new KNNHelper(tblName, numDimension);
-    }
-   
-    synchronized public void UpdateGroupId(Transaction tx){
+		knnHelper = new KNNHelper(tblName, numDimension);
+	}
+
+	synchronized public void UpdateGroupId(Transaction tx){
 		//TODO last tx not commit but call KMeans
-        curItems ++;
-        if(curItems == numItems) KMeans(tx);
-    }
+		curItems ++;
+		if(curItems == numItems) KMeans(tx);
+	}
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
 		//TODO erase print time
@@ -66,7 +67,14 @@ public class KNNAlg{
 		TablePlan p = new TablePlan(tblName, tx);
 
 		// 0. Load groupCenter if it's unloaded
-		loadCenters(tx);
+		while (groupCenter == null){
+			synchronized (initGroupCenter){
+				if(groupCenter == null){
+					groupCenter = new VectorConstant[numGroups];
+					loadCenters(tx);
+				}
+			}
+		}
 		System.out.println("finish 0:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 
 		// 1. Assign query vector to a group
@@ -99,38 +107,39 @@ public class KNNAlg{
 		return knnVec;
 	}
 
-    private void KMeans(Transaction tx) {
-        TablePlan p = new TablePlan(tblName, tx);
+	private void KMeans(Transaction tx) {
+		groupCenter = new VectorConstant[numGroups];
+		TablePlan p = new TablePlan(tblName, tx);
 		DistanceFn distFn = new EuclideanFn("vector");
 		Double prev_error = Double.MAX_VALUE, error;
 		int[] groupId = new int[numItems];
 
 		KMeans_init(p, tx);
 
-        while(true) {
+		while(true) {
 			KMeans_update(p, groupId, distFn, tx);
-            error = KMeans_calError(p, groupId, tx);
-            if(error - prev_error <= tolerence) break;
-            prev_error = error;
+			error = KMeans_calError(p, groupId, tx);
+			if(error - prev_error <= tolerence) break;
+			prev_error = error;
 		}
 
 		KMeans_store(p, groupId, tx);
-    }
+	}
 
-    private void KMeans_init(TablePlan p, Transaction tx) {
-        // Initializing group center from vectors 
-        // Further Optim: using K-Means++ method. Reference to calculateWeighedCentroid().
+	private void KMeans_init(TablePlan p, Transaction tx) {
+		// Initializing group center from vectors
+		// Further Optim: using K-Means++ method. Reference to calculateWeighedCentroid().
 
 		List<Integer> idxList = new ArrayList<Integer>();
-       
+
 		for(int i=0; i<numGroups; i++)
-            idxList.add(random.nextInt(numItems)+1);
+			idxList.add(random.nextInt(numItems)+1);
 		Collections.sort(idxList);
 
 		int idx_it = 0, scan_it = 0;
-        TableScan s = (TableScan) p.open();
-        s.beforeFirst();
-        while (s.next()){
+		TableScan s = (TableScan) p.open();
+		s.beforeFirst();
+		while (s.next()){
 			if(scan_it == idxList.get(idx_it)) {
 				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
@@ -138,9 +147,9 @@ public class KNNAlg{
 			if(idx_it == numGroups) break;
 			scan_it ++;
 
-        }
-        s.close();
-    }
+		}
+		s.close();
+	}
 
 	private void KMeans_update(TablePlan p, int[] groupId, DistanceFn distFn, Transaction tx) {
 		// 1. Recluster by finding the nearest group center for each vector
@@ -152,7 +161,7 @@ public class KNNAlg{
 			distFn.setQueryVector(vec);
 
 			Double minDist = Double.MAX_VALUE;
-			
+
 			for(int i = 0; i < numGroups; i++){
 				Double dist = distFn.distance(groupCenter[i]);
 				if(dist < minDist){
@@ -183,7 +192,7 @@ public class KNNAlg{
 			rid++;
 		}
 		s.close();
-		
+
 		for(int i=0; i<numGroups; i++) {
 			if(memberCnt[i] !=  0)
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
@@ -213,25 +222,25 @@ public class KNNAlg{
 	private void KMeans_store(TablePlan p, int[] groupId, Transaction tx) {
 		// Storing groupId and groupCenter back to tables.
 
-        TableScan s = (TableScan) p.open();
-        s.beforeFirst();
+		TableScan s = (TableScan) p.open();
+		s.beforeFirst();
 		int rid = 0;
-        while (s.next()){
+		while (s.next()){
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupId[rid]));
 			knnHelper.updateGroupId(s.getRecordId(), gid, tx);
 			rid++;
-        }
-        s.close();
+		}
+		s.close();
 
 		for(int i=0; i<numGroups; i++) {
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(i+1));
 			knnHelper.updateGroupCenter(gid, groupCenter[i], tx);
 		}
-    }
+	}
 
 	//TODO change to synchronize centerLoaded or lock
 	private synchronized static void loadCenters(Transaction tx) {
-		if(!centerLoaded) 
+		if(!centerLoaded)
 		{
 			List<VectorConstant> centerList = knnHelper.queryGroupCenters(tx);
 			for(int i=0; i<numGroups; i++) groupCenter[i] = centerList.get(i);
@@ -239,7 +248,7 @@ public class KNNAlg{
 		centerLoaded = true;
 	}
 
-    private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
+	private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
 		PriorityQueue<Pair<VectorConstant, Constant>> maxHeap =
 				new PriorityQueue<Pair<VectorConstant, Constant>>(numNeighbors, (a, b) -> (int)(dfn.distance(b.getKey()) - dfn.distance(a.getKey())));
 		for (RecordId rid : ridList) {
@@ -261,5 +270,5 @@ public class KNNAlg{
 			}
 		}
 		return res;
-    }
+	}
 }
