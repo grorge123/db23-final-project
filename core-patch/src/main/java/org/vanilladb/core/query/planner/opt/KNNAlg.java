@@ -43,7 +43,12 @@ public class KNNAlg{
 	private static KNNHelper knnHelper;
 
 	private String embField = "i_emb";
-	private Random random = new Random();
+	private static Random random;
+	static{
+		long seed = 100;
+		random = new Random();
+        random.setSeed(seed);
+    }
 
 	public KNNAlg(String _tblName, int _numDimension, int _numItems, int _numNeighbors) {
 		tblName = _tblName;

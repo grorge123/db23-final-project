@@ -5,6 +5,7 @@ import org.vanilladb.core.sql.VectorConstant;
 public abstract class DistanceFn {
 
     protected VectorConstant query;
+    protected double[] query_d;
     private String fieldName;
 
     public DistanceFn(String fieldName) {
@@ -13,6 +14,7 @@ public abstract class DistanceFn {
 
     public void setQueryVector(VectorConstant query) {
         this.query = query;
+        this.query_d = query.asJavaVal_d();
     }
     
     public double distance(VectorConstant vec) {
