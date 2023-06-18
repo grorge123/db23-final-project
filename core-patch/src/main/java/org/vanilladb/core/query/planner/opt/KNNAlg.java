@@ -145,7 +145,8 @@ public class KNNAlg{
 		List<Integer> idxList = new ArrayList<Integer>();
 		Set<Integer> checkDistinct = new HashSet<>();
 		while(checkDistinct.size() < numGroups) {
-			checkDistinct.add(random.nextInt(numItems)+1);			
+//			checkDistinct.add(random.nextInt(numItems));
+			checkDistinct.add(checkDistinct.size());
 		}
         for(Integer it : checkDistinct){
 			idxList.add(it);
@@ -159,7 +160,6 @@ public class KNNAlg{
 			if(scan_it == idxList.get(idx_it)) {
 				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
-				// System.out.println("idx_it: " + idx_it + ", " + idxList.get(idx_it) + ", " + idxList.size());
 			}
 			if(idx_it == numGroups) break;
 			scan_it ++;
@@ -211,11 +211,9 @@ public class KNNAlg{
 		s.close();
 
 		for(int i=0; i<numGroups; i++) {
-			if(memberCnt[i] !=  0) 
-			{
+			if(memberCnt[i] !=  0){
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
 			}
-			else System.out.println("Dead center: " + i);
 		}
 	}
 
