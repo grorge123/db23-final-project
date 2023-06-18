@@ -38,13 +38,14 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 1);
+	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 5000);
 	private static int maxIter = 500;
 
 	// Utils
 	private static boolean centerLoaded = false;
 	private static int curItems = 0;
 	private static VectorConstant[] groupCenter;
+	private static int[] groupSz;
 	private static Object initGroupCenter = new Object();
 	private static KNNHelper knnHelper;
 
@@ -61,11 +62,12 @@ public class KNNAlg{
 		numDimension = _numDimension;
 		numItems = _numItems;
 		numNeighbors = _numNeighbors;
-		knnHelper = new KNNHelper(tblName, numDimension);
+		knnHelper = new KNNHelper(tblName, numDimension, numGroups);
 		while (groupCenter == null){
 			synchronized (initGroupCenter){
 				if(groupCenter == null){
 					groupCenter = new VectorConstant[numGroups];
+					groupSz = new int[numGroups];
 					Transaction tx = VanillaDb.txMgr().newTransaction(
 							Connection.TRANSACTION_SERIALIZABLE, false);
 					loadCenters(tx);
@@ -97,21 +99,27 @@ public class KNNAlg{
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
 
+		PriorityQueue<Pair<Double, Integer>> minHeap =
+				new PriorityQueue<Pair<Double, Integer>>(numGroups, (a, b) -> (a.getKey() > b.getKey() ? 1 : -1));
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
 		for(int i = 0; i < numGroups; i++){
 			Double dist = distFn.distance(groupCenter[i]);
-			if(dist < minDist){
-				minDist = dist;
-				gid = i;
-			}
+			Pair<Double, Integer> num = new Pair<>(dist, i);
+			minHeap.offer(num);
 		}
 		s.close();
 
 		// 2. Calculate distance between query and all other vectors
-		Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gid));
-		List<RecordId> ridList = knnHelper.queryRecord(const_gid, tx);
-
+		List<RecordId> ridList = new ArrayList<>();
+		while (ridList.size() < numNeighbors){
+			Pair<Double, Integer> gp = minHeap.poll();
+			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
+			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
+			for(int i = 0 ; i < tmpList.size() ; i++){
+				ridList.add(tmpList.get(i));
+			}
+		}
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
 
@@ -120,6 +128,7 @@ public class KNNAlg{
 
 	private void KMeans(Transaction tx) {
 		groupCenter = new VectorConstant[numGroups];
+		groupSz = new int[numGroups];
 		TablePlan p = new TablePlan(tblName, tx);
 		DistanceFn distFn = new EuclideanFn("vector");
 		Double prev_error = Double.MAX_VALUE, error;
@@ -131,7 +140,7 @@ public class KNNAlg{
 			KMeans_update(p, groupId, distFn, tx);
 			error = KMeans_calError(p, groupId, tx);
 			// if(error - prev_error <= tolerence) break;
-			if(cnt >= maxIter) break;
+			if(cnt >= maxIter || prev_error - error < 1) break;
 			cnt++;
 			prev_error = error;
 			System.out.println("error of " + cnt +": " + error/numItems + "cc0: " + groupCenter[0]);
@@ -215,6 +224,7 @@ public class KNNAlg{
 		for(int i=0; i<numGroups; i++) {
 			if(memberCnt[i] !=  0){
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
+				groupSz[i] = memberCnt[i];
 			}
 		}
 	}
@@ -253,8 +263,8 @@ public class KNNAlg{
 		s.close();
 
 		for(int i=0; i<numGroups; i++) {
-			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(i+1));
-			knnHelper.updateGroupCenter(gid, groupCenter[i], tx);
+			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(i));
+			knnHelper.updateGroupCenter(gid, groupSz[i], groupCenter[i], tx);
 		}
 	}
 
@@ -263,31 +273,34 @@ public class KNNAlg{
 		if(!centerLoaded)
 		{
 			List<VectorConstant> centerList = knnHelper.queryGroupCenters(tx);
+			List<Constant> centerSzList = knnHelper.queryGroupSz(tx);
 			if(centerList.size() == 0)return;
 			for(int i=0; i<numGroups; i++) groupCenter[i] = centerList.get(i);
+			for(int i=0; i<numGroups; i++) groupSz[i] = (int)centerSzList.get(i).asJavaVal();
 		}
 		centerLoaded = true;
 	}
 
 	private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
-		PriorityQueue<Pair<Double, Constant>> maxHeap =
-				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() > a.getKey() ? 1 : -1));
+		PriorityQueue<Pair<Double, Constant>> minHeap =
+				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() > a.getKey() ? -1 : 1));
 		for (RecordId rid : ridList) {
 			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
 			Pair<Double, Constant> num = new Pair<>(dfn.distance(tmp.getKey()), tmp.getValue());
-			maxHeap.offer(num);
-			if (maxHeap.size() > numNeighbors) {
-				maxHeap.poll();
+			minHeap.offer(num);
+			if (minHeap.size() > numNeighbors) {
+				minHeap.poll();
 			}
 		}
 
 		List<Constant> res = new ArrayList<>();
 		for (int i = 0; i < numNeighbors; i++) {
 			// TODO need to handle group size < k
-			if(maxHeap.size() == 0){
+			if(minHeap.size() == 0){
 				res.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(2)));
 			}else{
-				res.add(maxHeap.poll().getValue());
+				Pair<Double, Constant> id = minHeap.poll();
+				res.add(id.getValue());
 			}
 		}
 		return res;

@@ -38,18 +38,20 @@ public class KNNHelper {
     private static String tbl, centerTbl;
     private static String originTble;
     private static TableInfo ti;
+    private static int numGroups;
     private static Object tiLock = new Object();
     String embField = "i_emb";
     String fileName = "items";
     String idField = "i_id";
 
     // The table name which searched by KNN
-    public KNNHelper(String _tbl, int _vecSz){
-        init(_tbl, _vecSz);
+    public KNNHelper(String _tbl, int _vecSz, int _numGroups){
+        init(_tbl, _vecSz, _numGroups);
     }
     
-    private synchronized void init(String _tbl, int _vecSz){
+    private synchronized void init(String _tbl, int _vecSz, int _numGroups){
         if(!isInit){
+            numGroups = _numGroups;
             originTble = _tbl;
             vecSz = _vecSz;
             tbl = originTble + "indextable";
@@ -70,6 +72,7 @@ public class KNNHelper {
 
             Schema sch2 = new Schema();
             sch2.addField("groupid", Type.INTEGER);
+            sch2.addField("groupsz", Type.INTEGER);
             sch2.addField("i_vector", Type.VECTOR(vecSz));
             CreateTableData ctd2 = new CreateTableData(centerTbl, sch2);
             Verifier.verifyCreateTableData(ctd2, tx);
@@ -128,17 +131,17 @@ public class KNNHelper {
         return  Constant.defaultInstance(Type.INTEGER);
     }*/
 
-    public void updateGroupCenter(Constant groupId, VectorConstant vec, Transaction tx){
+    public void updateGroupCenter(Constant groupId, int groupSz, VectorConstant vec, Transaction tx){
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
-
+        Constant groupsz = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupSz));
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("i_vector", new ConstantExpression(vec));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
         ModifyData md = new ModifyData(centerTbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0) {
-            List<String> fields = Arrays.asList("groupid", "i_vector");
-            List<Constant> vals = Arrays.asList(groupId, vec);
+            List<String> fields = Arrays.asList("groupid", "groupsz", "i_vector");
+            List<Constant> vals = Arrays.asList(groupId, groupsz, vec);
             InsertData ind = new InsertData(centerTbl, fields, vals);
             iup.executeInsert(ind, tx);
         }
@@ -146,15 +149,32 @@ public class KNNHelper {
 
     public List<VectorConstant> queryGroupCenters(Transaction tx){
         List<VectorConstant> groupCenters = new ArrayList<VectorConstant>();
-
+        for(int i = 0 ; i < numGroups ; i++){
+            groupCenters.add(VectorConstant.zeros(vecSz));
+        }
         TablePlan p = new TablePlan(centerTbl, tx);
         TableScan s = (TableScan) p.open();
         s.beforeFirst();
         while (s.next()){
-			groupCenters.add((VectorConstant) s.getVal("i_vector"));
+            int groupId = (int)s.getVal("groupid").asJavaVal();
+            groupCenters.set(groupId, (VectorConstant) s.getVal("i_vector"));
         }
         s.close();
-
+        return groupCenters;
+    }
+    public List<Constant> queryGroupSz(Transaction tx){
+        List<Constant> groupCenters = new ArrayList<Constant>();
+        for(int i = 0 ; i < numGroups ; i++){
+            groupCenters.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(0)));
+        }
+        TablePlan p = new TablePlan(centerTbl, tx);
+        TableScan s = (TableScan) p.open();
+        s.beforeFirst();
+        while (s.next()){
+            int groupId = (int)s.getVal("groupid").asJavaVal();
+            groupCenters.set(groupId, s.getVal("groupsz"));
+        }
+        s.close();
         return groupCenters;
     }
 
