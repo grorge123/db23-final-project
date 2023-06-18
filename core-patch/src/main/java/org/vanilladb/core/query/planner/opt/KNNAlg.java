@@ -3,11 +3,8 @@ package org.vanilladb.core.query.planner.opt;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.PriorityQueue;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import org.vanilladb.core.query.planner.opt.Pair;
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.sql.Constant;
@@ -32,7 +29,7 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 3;
+	private static int numGroups = 1;
 	private static Double tolerence = 0.0;
 
 	// Utils
@@ -61,7 +58,10 @@ public class KNNAlg{
 	synchronized public void UpdateGroupId(Transaction tx){
 		//TODO last tx not commit but call KMeans
 		curItems ++;
-		if(curItems == numItems) KMeans(tx);
+		if(curItems == numItems) 
+		{
+			KMeans(tx);
+		}
 	}
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
@@ -80,8 +80,7 @@ public class KNNAlg{
 				}
 			}
 		}
-		System.out.println("finish 0:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
-
+		
 		// 1. Assign query vector to a group
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
@@ -97,18 +96,13 @@ public class KNNAlg{
 		}
 		s.close();
 
-		System.out.println("finish 1:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		// 2. Calculate distance between query and all other vectors
 		Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gid));
 		List<RecordId> ridList = knnHelper.queryRecord(const_gid, tx);
-		int vecInGroup = ridList.size();
 
-		System.out.println("finish 2:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
 
-
-		System.out.println("finish 3:" + (System.currentTimeMillis() - startTime)+ " " + tx.hashCode());
 		return knnVec;
 	}
 
