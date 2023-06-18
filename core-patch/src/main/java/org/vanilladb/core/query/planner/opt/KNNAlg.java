@@ -18,6 +18,8 @@ import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
 import java.util.AbstractMap;
+import java.lang.Thread;
+
 public class KNNAlg{
 
 	// define pair structure
@@ -31,7 +33,7 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 3;
+	private static int numGroups = 1;
 	private static Double tolerence = 0.0;
 
 	// Utils
@@ -69,12 +71,18 @@ public class KNNAlg{
 	}
 
 	synchronized public void UpdateGroupId(Transaction tx){
-		//TODO last tx not commit but call KMeans
 		curItems ++;
-		if(curItems == numItems)
-		{
+
+		try {
+			if(curItems == numItems){
+			Thread.sleep(3000);
 			KMeans(tx);
+			}
+		} catch(InterruptedException e) {
+				e.printStackTrace();
 		}
+		
+		
 	}
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
