@@ -1,18 +1,39 @@
-def change(str, get):
-    with open("./bench/src/main/resources/org/vanilladb/bench/vanillabench.properties", 'r') as file:
+def change_bench(str, get):
+    path = "./bench/src/main/resources/org/vanilladb/bench/vanillabench.properties"
+    with open(path, 'r') as file:
         lines = file.readlines()
-        #go throught lines to find org.vanilladb.bench.benchmarks.ann.AnnBenchConstants.NUM_ITEMS...
         for i in range(len(lines)):
             if lines[i].find(str) != -1:
-                lines[i] = "org.vanilladb.bench.benchmarks.ann.AnnBenchConstants." + str + "=" + get + "\n"
+                lines[i] = lines[i].split('=')[0] + "=" + get + "\n"
                 break
-
     #write back to file
-    with open("./bench/src/main/resources/org/vanilladb/bench/vanillabench.properties", 'w') as file:
+    with open(path, 'w') as file:
         file.writelines(lines)
 
-while(1):
-    get = input("Change properties in vanillabench.properties ex: NUM_ITEMS 10000, or -1 to exit\n")
-    if get == "-1":
-        break
-    change(get.split()[0], get.split()[1])
+def change_core(str, get):
+    path = "./bench/src/main/resources/org/vanilladb/core/vanilladb.properties"
+    with open(path, 'r') as file:
+        lines = file.readlines()
+        for i in range(len(lines)):
+            if lines[i].find(str) != -1:
+                lines[i] = lines[i].split('=')[0] + "=" + get + "\n"
+                break
+    #write back to file
+    with open(path, 'w') as file:
+        file.writelines(lines)
+
+def change(str, second):
+    print("change " + str + " (-1 to remain the same):")
+    num_items = input()
+    if num_items != "-1":
+        if second == 1:
+            change_bench(str, num_items)
+        change_core(str, num_items)
+
+#if want to add more properties, just add more change() here
+# second = 0: change core only, second = 1: change bench and core
+
+change("NUM_ITEMS", 1)
+change("NUM_DIMENSIONS", 1)
+change("NUM_NEIGHBORS", 0)
+change("NUM_GROUPS", 0)
