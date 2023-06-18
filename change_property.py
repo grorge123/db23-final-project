@@ -30,6 +30,9 @@ def change(str, second):
             change_bench(str, num_items)
         change_core(str, num_items)
 
+#if want to add more properties, just add more change() here
+# second = 0: change core only, second = 1: change bench and core
+
 change("NUM_ITEMS", 1)
 change("NUM_DIMENSIONS", 1)
 change("NUM_NEIGHBORS", 0)
