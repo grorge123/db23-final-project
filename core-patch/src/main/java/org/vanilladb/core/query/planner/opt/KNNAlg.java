@@ -3,9 +3,12 @@ package org.vanilladb.core.query.planner.opt;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.PriorityQueue;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
 import org.vanilladb.core.server.VanillaDb;
@@ -33,8 +36,8 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 4;
-	private static int maxIter = 200;
+	private static int numGroups = 1000;
+	private static int maxIter = 500;
 
 	// Utils
 	private static boolean centerLoaded = false;
@@ -81,16 +84,12 @@ public class KNNAlg{
 		} catch(InterruptedException e) {
 				e.printStackTrace();
 		}
-		
-		
 	}
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
-
-		// 0. Load groupCenter if it's unloaded
 
 		// 1. Assign query vector to a group
 		int gid = 0;
@@ -144,9 +143,13 @@ public class KNNAlg{
 		// Further Optim: using K-Means++ method. Reference to calculateWeighedCentroid().
 
 		List<Integer> idxList = new ArrayList<Integer>();
-
-		for(int i=0; i<numGroups; i++)
-			idxList.add(random.nextInt(numItems)+1);
+		Set<Integer> checkDistinct = new HashSet<>();
+		while(checkDistinct.size() < numGroups) {
+			checkDistinct.add(random.nextInt(numItems)+1);			
+		}
+        for(Integer it : checkDistinct){
+			idxList.add(it);
+		}
 		Collections.sort(idxList);
 
 		int idx_it = 0, scan_it = 0;
@@ -156,6 +159,7 @@ public class KNNAlg{
 			if(scan_it == idxList.get(idx_it)) {
 				groupCenter[idx_it] = (VectorConstant) s.getVal(embField);
 				idx_it ++;
+				// System.out.println("idx_it: " + idx_it + ", " + idxList.get(idx_it) + ", " + idxList.size());
 			}
 			if(idx_it == numGroups) break;
 			scan_it ++;
@@ -207,8 +211,11 @@ public class KNNAlg{
 		s.close();
 
 		for(int i=0; i<numGroups; i++) {
-			if(memberCnt[i] !=  0)
+			if(memberCnt[i] !=  0) 
+			{
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
+			}
+			else System.out.println("Dead center: " + i);
 		}
 	}
 
