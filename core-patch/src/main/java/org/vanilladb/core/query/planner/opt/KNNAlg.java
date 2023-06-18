@@ -58,7 +58,7 @@ public class KNNAlg{
 	synchronized public void UpdateGroupId(Transaction tx){
 		//TODO last tx not commit but call KMeans
 		curItems ++;
-		if(curItems == numItems) 
+		if(curItems == numItems)
 		{
 			KMeans(tx);
 		}
@@ -66,7 +66,6 @@ public class KNNAlg{
 
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
 		//TODO erase print time
-		long startTime = System.currentTimeMillis();
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
 		TablePlan p = new TablePlan(tblName, tx);
@@ -80,7 +79,7 @@ public class KNNAlg{
 				}
 			}
 		}
-		
+
 		// 1. Assign query vector to a group
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
@@ -248,11 +247,11 @@ public class KNNAlg{
 	}
 
 	private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
-		PriorityQueue<Pair<VectorConstant, Constant>> maxHeap =
-				new PriorityQueue<Pair<VectorConstant, Constant>>(numNeighbors, (a, b) -> (int)(dfn.distance(b.getKey()) - dfn.distance(a.getKey())));
+		PriorityQueue<Pair<Double, Constant>> maxHeap =
+				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() > a.getKey() ? 1 : -1));
 		for (RecordId rid : ridList) {
 			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
-			Pair<VectorConstant, Constant> num = new Pair<>(tmp.getKey(), tmp.getValue());
+			Pair<Double, Constant> num = new Pair<>(dfn.distance(tmp.getKey()), tmp.getValue());
 			maxHeap.offer(num);
 			if (maxHeap.size() > numNeighbors) {
 				maxHeap.poll();

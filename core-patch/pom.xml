@@ -122,6 +122,9 @@
 				<version>3.8.1</version>
 				<configuration>
 					<release>17</release>
+					<compilerArgs combine.children="append">
+						<arg>--add-modules=jdk.incubator.vector</arg>
+					</compilerArgs>
 				</configuration>
 			</plugin>
 
