@@ -1,5 +1,6 @@
 package org.vanilladb.core.query.planner.opt;
 
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.PriorityQueue;
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.Random;
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
+import org.vanilladb.core.server.VanillaDb;
 import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.sql.Type;
 import org.vanilladb.core.sql.VectorConstant;
@@ -29,7 +31,7 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 1;
+	private static int numGroups = 3;
 	private static Double tolerence = 0.0;
 
 	// Utils
@@ -53,6 +55,17 @@ public class KNNAlg{
 		numItems = _numItems;
 		numNeighbors = _numNeighbors;
 		knnHelper = new KNNHelper(tblName, numDimension);
+		while (groupCenter == null){
+			synchronized (initGroupCenter){
+				if(groupCenter == null){
+					groupCenter = new VectorConstant[numGroups];
+					Transaction tx = VanillaDb.txMgr().newTransaction(
+							Connection.TRANSACTION_SERIALIZABLE, false);
+					loadCenters(tx);
+					tx.commit();
+				}
+			}
+		}
 	}
 
 	synchronized public void UpdateGroupId(Transaction tx){
@@ -71,14 +84,6 @@ public class KNNAlg{
 		TablePlan p = new TablePlan(tblName, tx);
 
 		// 0. Load groupCenter if it's unloaded
-		while (groupCenter == null){
-			synchronized (initGroupCenter){
-				if(groupCenter == null){
-					groupCenter = new VectorConstant[numGroups];
-					loadCenters(tx);
-				}
-			}
-		}
 
 		// 1. Assign query vector to a group
 		int gid = 0;
@@ -241,6 +246,7 @@ public class KNNAlg{
 		if(!centerLoaded)
 		{
 			List<VectorConstant> centerList = knnHelper.queryGroupCenters(tx);
+			if(centerList.size() == 0)return;
 			for(int i=0; i<numGroups; i++) groupCenter[i] = centerList.get(i);
 		}
 		centerLoaded = true;
