@@ -133,48 +133,20 @@ public class KNNAlg{
 		Double prev_error = Double.MAX_VALUE, error;
 		int[] groupId = new int[numItems];
 
-		KMeans_init(p, tx);
+		KMeans_plusplus_init(p, distFn, tx);
 		int cnt = 0;
-		double thr = 0.6;
 		while(true) {
-			List<Integer> deadList = KMeans_update(p, groupId, distFn, thr, tx);
+			List<Integer> deadList = KMeans_update(p, groupId, distFn, tx);
 			error = KMeans_calError(p, groupId, tx);
 			KMeans_reinit(p, deadList, tx);
+			// if(error - prev_error <= tolerence) break;
 			if(cnt >= maxIter) break;
 			cnt++;
-			if(cnt % (maxIter / 10) == 0) thr = thr * 0.6;
 			prev_error = error;
 			System.out.println("error/dead of " + cnt +": " + error/numItems + " / " + deadList.size());
-			// System.out.println("center 0" + groupCenter[0]);
 		}
 
 		KMeans_store(p, groupId, tx);
-	}
-
-	private void KMeans_init(TablePlan p, Transaction tx) {
-		List<Integer> idxList = new ArrayList<Integer>();
-		Set<Integer> checkDistinct = new HashSet<>();
-		while(checkDistinct.size() < numGroups) {
-			checkDistinct.add(random.nextInt(numItems));
-			// checkDistinct.add(checkDistinct.size());
-		}
-        for(Integer it : checkDistinct){
-			idxList.add(it);
-		}
-		Collections.sort(idxList);
-
-		int idx_it = 0, scan_it = 0;
-		TableScan s = (TableScan) p.open();
-		s.beforeFirst();
-		while (s.next()){
-			if(scan_it == idxList.get(idx_it)) {
-				groupCenter[idx_it] = (VectorConstant) s.getVal(embField); //
-				idx_it ++;
-			}
-			if(idx_it == numGroups) break;
-			scan_it ++;
-		}
-		s.close();
 	}
 
 	private void KMeans_reinit(TablePlan p, List<Integer> deadList, Transaction tx) {
@@ -205,7 +177,7 @@ public class KNNAlg{
 		s.close();
 	}
 
-	/*private void KMeans_plusplus_init(TablePlan p, DistanceFn distFn, Transaction tx) {
+	private void KMeans_plusplus_init(TablePlan p, DistanceFn distFn, Transaction tx) {
 		// Initializing group center from vectors
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
@@ -229,6 +201,8 @@ public class KNNAlg{
 			int rid = 0;
 			while (s.next()){
 				VectorConstant vec = (VectorConstant) s.getVal(embField);
+				distList[rid] = distFn.distance(currentCenter);
+
 				Double minDist = distList[rid];
 				Double dist = distFn.distance(vec);
 				if(dist < minDist) minDist = dist;
@@ -250,9 +224,8 @@ public class KNNAlg{
 			
 			s = (TableScan) p.open();
 			s.beforeFirst();
-			while (s.next()) {
-				if (sampleId == 0)  break;
-				sampleId--;
+			while (s.next() && sampleId!=0){
+				sampleId --;
 			}
 			// Update next groupCenter and set it as current center
 			currentCenter = (VectorConstant) s.getVal(embField);
@@ -260,9 +233,9 @@ public class KNNAlg{
            
 			groupCenter[i] = currentCenter;
 		}
-	}*/
+	}
 
-	private List<Integer> KMeans_update(TablePlan p, int[] groupId, DistanceFn distFn, double thr, Transaction tx) {
+	private List<Integer> KMeans_update(TablePlan p, int[] groupId, DistanceFn distFn, Transaction tx) {
 		// 1. Recluster by finding the nearest group center for each vector
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
@@ -297,12 +270,9 @@ public class KNNAlg{
 		s.beforeFirst();
 		rid = 0;
 		while (s.next()){
-			if(random.nextDouble() > thr) {
-				// Add randomness to prevent from stuch in plateau
-				VectorConstant vec = (VectorConstant) s.getVal(embField);
-				coordSum[groupId[rid]].add(vec);
-				memberCnt[groupId[rid]] ++;
-			}
+			VectorConstant vec = (VectorConstant) s.getVal(embField);
+			coordSum[groupId[rid]].add(vec);
+			memberCnt[groupId[rid]] ++;
 			rid++;
 		}
 		s.close();
