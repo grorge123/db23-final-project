@@ -61,18 +61,20 @@ public class KNNHelper {
             Transaction tx = VanillaDb.txMgr().newTransaction(
                     Connection.TRANSACTION_SERIALIZABLE, false);
             if(VanillaDb.catalogMgr().getTableInfo(tbl, tx) != null){
-                TablePlan p = new TablePlan(originTble, tx);
-                TableScan s = (TableScan) p.open();
-                s.beforeFirst();
-                while (s.next()){
-                    if(reM.size() >= cacheNum)break;
-                    Constant reVecCon = s.getVal(embField);
-                    Constant reIdCon = s.getVal(idField);
-                    int[] reConArray = (int[])reVecCon.asJavaVal();
-                    Pair<VectorConstant, Constant> reVal = new Pair<>(new VectorConstant(reConArray), reIdCon);
-                    reM.put(s.getRecordId(), reVal);
+                if(VanillaDb.catalogMgr().getTableInfo(originTble, tx) != null) {
+                    TablePlan p = new TablePlan(originTble, tx);
+                    TableScan s = (TableScan) p.open();
+                    s.beforeFirst();
+                    while (s.next()) {
+                        if (reM.size() >= cacheNum) break;
+                        Constant reVecCon = s.getVal(embField);
+                        Constant reIdCon = s.getVal(idField);
+                        int[] reConArray = (int[]) reVecCon.asJavaVal();
+                        Pair<VectorConstant, Constant> reVal = new Pair<>(new VectorConstant(reConArray), reIdCon);
+                        reM.put(s.getRecordId(), reVal);
+                    }
+                    s.close();
                 }
-                s.close();
                 return;
             }
             IndexUpdatePlanner iup = new IndexUpdatePlanner();
