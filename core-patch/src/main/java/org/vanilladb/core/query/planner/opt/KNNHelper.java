@@ -43,6 +43,8 @@ public class KNNHelper {
     String embField = "i_emb";
     String fileName = "items";
     String idField = "i_id";
+    private static int cacheNum = 10000;
+    Map<RecordId, Pair<VectorConstant, Constant>> reM = new HashMap<>();
 
     // The table name which searched by KNN
     public KNNHelper(String _tbl, int _vecSz, int _numGroups){
@@ -59,6 +61,18 @@ public class KNNHelper {
             Transaction tx = VanillaDb.txMgr().newTransaction(
                     Connection.TRANSACTION_SERIALIZABLE, false);
             if(VanillaDb.catalogMgr().getTableInfo(tbl, tx) != null){
+                TablePlan p = new TablePlan(originTble, tx);
+                TableScan s = (TableScan) p.open();
+                s.beforeFirst();
+                while (s.next()){
+                    if(reM.size() >= cacheNum)break;
+                    Constant reVecCon = s.getVal(embField);
+                    Constant reIdCon = s.getVal(idField);
+                    int[] reConArray = (int[])reVecCon.asJavaVal();
+                    Pair<VectorConstant, Constant> reVal = new Pair<>(new VectorConstant(reConArray), reIdCon);
+                    reM.put(s.getRecordId(), reVal);
+                }
+                s.close();
                 return;
             }
             IndexUpdatePlanner iup = new IndexUpdatePlanner();
@@ -213,6 +227,9 @@ public class KNNHelper {
         return reVal;
     }
     public Pair<VectorConstant, Constant> getVecAndId(RecordId recordId, Transaction tx){
+        RecordId find = new RecordId(new BlockId(fileName + ".tbl", recordId.block().number()), recordId.id());
+        if(reM.containsKey(find))
+            return reM.get(find);
         if (ti == null) {
             synchronized (tiLock) {
                 if (ti == null){

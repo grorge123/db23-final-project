@@ -20,7 +20,6 @@ import org.vanilladb.core.sql.distfn.EuclideanFn;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
-import org.vanilladb.core.util.CoreProperties;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -36,8 +35,9 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 500; // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
-	private static int maxIter = 10000;
+	private static int numGroups = 1000; // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
+	private static int maxIter = 1000;
+	private static int groupMultiplier = 4;
 
 	// Utils
 	private static boolean centerLoaded = false;
@@ -110,7 +110,8 @@ public class KNNAlg{
 		// 2. Calculate distance between query and all other vectors
 		List<RecordId> ridList = new ArrayList<>();
 		int idx = 0;
-		while (ridList.size() < numNeighbors){
+		while (ridList.size() < numNeighbors * groupMultiplier){
+			if(idx >= arr.length)break;
 			Pair<Double, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
 			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
@@ -136,11 +137,9 @@ public class KNNAlg{
 		int cnt = 0;
 		double thr = 0.6;
 		while(true) {
-			
 			List<Integer> deadList = KMeans_update(p, groupId, distFn, thr, tx);
 			error = KMeans_calError(p, groupId, tx);
 			KMeans_reinit(p, deadList, tx);
-			// if(error - prev_error <= tolerence) break;
 			if(cnt >= maxIter) break;
 			cnt++;
 			if(cnt % (maxIter / 10) == 0) thr = thr * 0.6;
@@ -373,7 +372,7 @@ public class KNNAlg{
 
 	private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
 		PriorityQueue<Pair<Double, Constant>> minHeap =
-				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() > a.getKey() ? -1 : 1));
+				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() < a.getKey() ? -1 : 1));
 		for (RecordId rid : ridList) {
 			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
 			Pair<Double, Constant> num = new Pair<>(dfn.distance2(tmp.getKey()), tmp.getValue());
@@ -385,7 +384,6 @@ public class KNNAlg{
 
 		List<Constant> res = new ArrayList<>();
 		for (int i = 0; i < numNeighbors; i++) {
-			// TODO need to handle group size < k
 			if(minHeap.size() == 0){
 				res.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(2)));
 				System.out.println("ERROR: Not found in group!");
