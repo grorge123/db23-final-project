@@ -25,6 +25,8 @@ import org.vanilladb.core.util.CoreProperties;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.lang.Thread;
+import java.util.stream.*;
+
 
 public class KNNAlg{
 
@@ -95,18 +97,13 @@ public class KNNAlg{
 		int gid = 0;
 		Double minDist = Double.MAX_VALUE;
 
-//		PriorityQueue<Pair<Double, Integer>> minHeap =
-//				new PriorityQueue<Pair<Double, Integer>>(numGroups, (a, b) -> (a.getKey() > b.getKey() ? 1 : -1));
-		Pair<Double, Integer>[] arr = new Pair[numGroups];
-		TableScan s = (TableScan) p.open();
-		s.beforeFirst();
-		for(int i = 0; i < numGroups; i++){
-			Double dist = distFn.distance(groupCenter[i]);
-			Pair<Double, Integer> num = new Pair<>(dist, i);
-			arr[i] = new Pair<>(dist, i);
-//			minHeap.offer(num);
-		}
-		s.close();
+		Pair<Double, Integer>[] arr = IntStream.range(0, numGroups)
+				.parallel()
+				.mapToObj(i -> {
+					Double dist = distFn.distance2(groupCenter[i]);
+					return new Pair<>(dist, i);
+				})
+				.toArray(Pair[]::new);
 
 		Comparator<Pair<Double, Integer>> pairComparator = Comparator.comparing(Pair::getKey);
 		Arrays.parallelSort(arr, pairComparator);
@@ -114,14 +111,12 @@ public class KNNAlg{
 		List<RecordId> ridList = new ArrayList<>();
 		int idx = 0;
 		while (ridList.size() < numNeighbors){
-//			Pair<Double, Integer> gp = minHeap.poll();
 			Pair<Double, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
 			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
 			for(int i = 0 ; i < tmpList.size() ; i++){
 				ridList.add(tmpList.get(i));
 			}
-			System.out.println(gp.getKey() + " " + idx + " " + numGroups + " " + numItems + " " + tmpList.size());
 		}
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
@@ -280,7 +275,7 @@ public class KNNAlg{
 			Double minDist = Double.MAX_VALUE;
 
 			for(int i = 0; i < numGroups; i++){
-				Double dist = distFn.distance(groupCenter[i]);
+				Double dist = distFn.distance2(groupCenter[i]);
 				if(dist < minDist){
 					minDist = dist;
 					//TODO check could merge calculate center to here // further optim
@@ -381,7 +376,7 @@ public class KNNAlg{
 				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() > a.getKey() ? -1 : 1));
 		for (RecordId rid : ridList) {
 			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
-			Pair<Double, Constant> num = new Pair<>(dfn.distance(tmp.getKey()), tmp.getValue());
+			Pair<Double, Constant> num = new Pair<>(dfn.distance2(tmp.getKey()), tmp.getValue());
 			minHeap.offer(num);
 			if (minHeap.size() > numNeighbors) {
 				minHeap.poll();

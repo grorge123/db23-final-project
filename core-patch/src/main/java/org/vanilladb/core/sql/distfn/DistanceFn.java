@@ -25,7 +25,16 @@ public abstract class DistanceFn {
         return calculateDistance(vec);
     }
 
+    public double distance2(VectorConstant vec) {
+        // check vector dimension
+        if (query.dimension() != vec.dimension()) {
+            throw new IllegalArgumentException("Vector length does not match");
+        }
+        return calculateDistance2(vec);
+    }
+
     protected abstract double calculateDistance(VectorConstant vec);
+    protected abstract double calculateDistance2(VectorConstant vec);
 
     public VectorConstant getQuery() {
         return query;
