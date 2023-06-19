@@ -35,8 +35,8 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 1000; // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
-	private static int maxIter = 1000;
+	private static int numGroups = 500; // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
+	private static int maxIter = 10000;
 	private static int groupMultiplier = 4;
 
 	// Utils
