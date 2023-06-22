@@ -96,6 +96,16 @@ public class VectorConstant extends Constant implements Serializable {
         return vec;
     }
     
+    public float[] asJavaVal_f() {
+    	int len = vec.length;
+    	float[] newVec = new float[len];
+        
+        for (int i = 0; i < len; i++) {
+            newVec[i] = (float)vec[i];
+        }
+        return newVec;
+    }
+
     public double[] asJavaVal_d() {
     	int len = vec.length;
     	double[] newVec = new double[len];

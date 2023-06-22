@@ -5,6 +5,7 @@ import org.vanilladb.core.sql.VectorConstant;
 public abstract class DistanceFn {
 
     protected VectorConstant query;
+    protected float[] query_f;
     protected double[] query_d;
     private String fieldName;
 
@@ -15,6 +16,7 @@ public abstract class DistanceFn {
     public void setQueryVector(VectorConstant query) {
         this.query = query;
         this.query_d = query.asJavaVal_d();
+        this.query_f = query.asJavaVal_f();
     }
     
     public double distance(VectorConstant vec) {
@@ -25,7 +27,7 @@ public abstract class DistanceFn {
         return calculateDistance(vec);
     }
 
-    public double distance2(VectorConstant vec) {
+    public float distance2(VectorConstant vec) {
         // check vector dimension
         if (query.dimension() != vec.dimension()) {
             throw new IllegalArgumentException("Vector length does not match");
@@ -34,7 +36,7 @@ public abstract class DistanceFn {
     }
 
     protected abstract double calculateDistance(VectorConstant vec);
-    protected abstract double calculateDistance2(VectorConstant vec);
+    protected abstract float calculateDistance2(VectorConstant vec);
 
     public VectorConstant getQuery() {
         return query;

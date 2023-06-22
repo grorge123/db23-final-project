@@ -94,15 +94,15 @@ public class KNNAlg{
 		distFn.setQueryVector(query);
 
 		// 1. Assign query vector to a group
-		Pair<Double, Integer>[] arr = IntStream.range(0, numGroups)
+		Pair<Float, Integer>[] arr = IntStream.range(0, numGroups)
 				.parallel()
 				.mapToObj(i -> {
-					Double dist = distFn.distance2(groupCenter[i]);
+					Float dist = distFn.distance2(groupCenter[i]);
 					return new Pair<>(dist, i);
 				})
 				.toArray(Pair[]::new);
 
-		Comparator<Pair<Double, Integer>> pairComparator = Comparator.comparing(Pair::getKey);
+		Comparator<Pair<Float, Integer>> pairComparator = Comparator.comparing(Pair::getKey);
 		Arrays.parallelSort(arr, pairComparator);
 
 		// 2. Calculate distance between query and all other vectors
@@ -110,7 +110,7 @@ public class KNNAlg{
 		int idx = 0;
 		while (idx < groupMultiplier){
 			if(idx >= arr.length)break;
-			Pair<Double, Integer> gp = arr[idx++];
+			Pair<Float, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
 			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
 			ridList.addAll(tmpList);
@@ -127,7 +127,7 @@ public class KNNAlg{
 		// groupSz = new int[numGroups];
 		TablePlan p = new TablePlan(tblName, tx);
 		DistanceFn distFn = new EuclideanFn("vector");
-		Double prev_error = Double.MAX_VALUE, error;
+		Float prev_error = Float.MAX_VALUE, error;
 		int[] groupId = new int[numItems];
 		System.err.println("Groupnum = " + numGroups);
 		KMeans_plusplus_init(p, distFn, tx);
@@ -153,23 +153,23 @@ public class KNNAlg{
 		s.close();
 
 		// Randomly choice next center based on dist to current center
-		double[] distList = new double[numItems];
+		Float[] distList = new Float[numItems];
 		VectorConstant currentCenter = groupCenter[0];
 
-		for(int i=0; i<numItems; i++) distList[i] = Double.MAX_VALUE;
+		for(int i=0; i<numItems; i++) distList[i] = Float.MAX_VALUE;
 
 		for(int i=1; i<numGroups; i++)
 		{
 			distFn.setQueryVector(currentCenter);
-			double distSum = 0.0;
+			Float distSum = 0.f;
 			// Calculating dist to nearest center for each vector
 			s = (TableScan) p.open();
 			s.beforeFirst();
 			int rid = 0;
 			while (s.next()){
 				VectorConstant vec = (VectorConstant) s.getVal(embField);
-				Double minDist = distList[rid];
-				Double dist = distFn.distance2(vec);
+				Float minDist = distList[rid];
+				Float dist = distFn.distance2(vec);
 				if(dist < minDist) minDist = dist;
 
 				distList[rid] = minDist;
@@ -179,7 +179,7 @@ public class KNNAlg{
 			s.close();
 			// Sampling vector based on its distance to nearest neighbor
 			int sampleId = 0;
-			double randomValue = random.nextDouble() * (distSum - distList[0]) + distList[0];
+			Float randomValue = random.nextFloat() * (distSum - distList[0]) + distList[0];
 
 			// The first group center is vector 0.
 			// So we can start select from the second one.
@@ -244,10 +244,10 @@ public class KNNAlg{
 			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			distFn.setQueryVector(vec);
 
-			Double minDist = Double.MAX_VALUE;
+			Float minDist = Float.MAX_VALUE;
 
 			for(int i = 0; i < numGroups; i++){
-				Double dist = distFn.distance2(groupCenter[i]);
+				Float dist = distFn.distance2(groupCenter[i]);
 				if(dist < minDist){
 					minDist = dist;
 					//TODO check could merge calculate center to here // further optim
@@ -284,20 +284,20 @@ public class KNNAlg{
 		}
 	}
 
-	private Double KMeans_calError(TablePlan p, int[] groupId, Transaction tx) {
-		Double error = 0.0;
+	private Float KMeans_calError(TablePlan p, int[] groupId, Transaction tx) {
+		Float error = 0.f;
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
 		int rid = 0;
 		while (s.next()){
 			VectorConstant vec = (VectorConstant) s.getVal(embField);
 			VectorConstant center = groupCenter[groupId[rid]];
-			double sum = 0;
+			Float sum = 0.f;
 			for (int i = 0; i < vec.dimension(); i++) {
-				double diff = center.get(i) - vec.get(i);
+				Float diff = (float) center.get(i) - vec.get(i);
 				sum += diff * diff;
 			}
-			error += Math.sqrt(sum);
+			error += (float) Math.sqrt((double)sum);
 			rid++;
 		}
 		s.close();
@@ -337,11 +337,11 @@ public class KNNAlg{
 	}
 
 	private List<Constant> KSmallest(List<RecordId> ridList, DistanceFn dfn, Transaction tx) {
-		PriorityQueue<Pair<Double, Constant>> minHeap =
-				new PriorityQueue<Pair<Double, Constant>>(numNeighbors, (a, b) -> (b.getKey() < a.getKey() ? -1 : 1));
+		PriorityQueue<Pair<Float, Constant>> minHeap =
+				new PriorityQueue<Pair<Float, Constant>>(numNeighbors, (a, b) -> (b.getKey() < a.getKey() ? -1 : 1));
 		for (RecordId rid : ridList) {
 			org.vanilladb.core.query.planner.opt.Pair<VectorConstant, Constant> tmp = knnHelper.getVecAndId(rid, tx);
-			Pair<Double, Constant> num = new Pair<>(dfn.distance2(tmp.getKey()), tmp.getValue());
+			Pair<Float, Constant> num = new Pair<>(dfn.distance2(tmp.getKey()), tmp.getValue());
 			minHeap.offer(num);
 			if (minHeap.size() > numNeighbors) {
 				minHeap.poll();
@@ -355,7 +355,7 @@ public class KNNAlg{
 				res.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(2)));
 				System.out.println("ERROR: Not found in group!");
 			}else{
-				Pair<Double, Constant> id = minHeap.poll();
+				Pair<Float, Constant> id = minHeap.poll();
 				res.add(id.getValue());
 			}
 		}
