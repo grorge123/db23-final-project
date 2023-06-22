@@ -111,7 +111,7 @@ public class KNNAlg{
 		// 2. Calculate distance between query and all other vectors
 		List<RecordId> ridList = new ArrayList<>();
 		int idx = 0;
-		while (ridList.size() < numNeighbors * groupMultiplier){
+		while (idx < groupMultiplier){
 			if(idx >= arr.length)break;
 			Pair<Double, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
