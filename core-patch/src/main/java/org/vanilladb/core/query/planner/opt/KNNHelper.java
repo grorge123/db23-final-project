@@ -43,7 +43,7 @@ public class KNNHelper {
     String embField = "i_emb";
     String fileName = "items";
     String idField = "i_id";
-    private static int cacheNum = 10000;
+    private static int cacheNum = 0;
     Map<RecordId, Pair<VectorConstant, Constant>> reM = new HashMap<>();
 
     // The table name which searched by KNN
