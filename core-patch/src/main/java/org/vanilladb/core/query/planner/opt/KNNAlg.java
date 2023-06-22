@@ -36,9 +36,9 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990); // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
-	private static int maxIter = 1000;
-	private static int groupMultiplier = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".GROUP_MULTIPLIER", 9990);;
+	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990); 
+	private static int maxIter = 100;
+	private static int groupMultiplier = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".GROUP_MULTIPLIER", 9990);
 
 	// Utils
 	private static boolean centerLoaded = false;
@@ -81,8 +81,8 @@ public class KNNAlg{
 
 		try {
 			if(curItems == numItems){
-			Thread.sleep(3000);
-			KMeans(tx);
+				Thread.sleep(3000);
+				KMeans(tx);
 			}
 		} catch(InterruptedException e) {
 				e.printStackTrace();
@@ -133,20 +133,81 @@ public class KNNAlg{
 		DistanceFn distFn = new EuclideanFn("vector");
 		Double prev_error = Double.MAX_VALUE, error;
 		int[] groupId = new int[numItems];
-
-		KMeans_init(p, tx);
+		System.err.println("Groupnum = " + numGroups);
+		KMeans_plusplus_init(p, distFn, tx);
 		int cnt = 0;
 		while(true) {
 			KMeans_update(p, groupId, distFn, tx);
 			error = KMeans_calError(p, groupId, tx);
-			// if(error - prev_error <= tolerence) break;
-			if(cnt >= maxIter || prev_error - error < 1) break;
+			if(cnt >= maxIter || prev_error - error <= 0) break; 
 			cnt++;
 			prev_error = error;
-			System.out.println("error of " + cnt +": " + error/numItems + "cc0: " + groupCenter[0]);
+			System.out.println("error of " + cnt +": " + error/numItems);
 		}
 
 		KMeans_store(p, groupId, tx);
+	}
+
+	private void KMeans_plusplus_init(TablePlan p, DistanceFn distFn, Transaction tx) {
+		// Initializing group center from vectors
+		TableScan s = (TableScan) p.open();
+		s.beforeFirst();
+		s.next();
+		groupCenter[0] = (VectorConstant) s.getVal(embField);
+		s.close();
+
+		// Randomly choice next center based on dist to current center
+		double[] distList = new double[numItems];
+		VectorConstant currentCenter = groupCenter[0];
+
+		for(int i=0; i<numItems; i++) distList[i] = Double.MAX_VALUE;
+
+		for(int i=1; i<numGroups; i++)
+		{
+			distFn.setQueryVector(currentCenter);
+			double distSum = 0.0;
+			// Calculating dist to nearest center for each vector
+			s = (TableScan) p.open();
+			s.beforeFirst();
+			int rid = 0;
+			while (s.next()){
+				VectorConstant vec = (VectorConstant) s.getVal(embField);
+				Double minDist = distList[rid];
+				Double dist = distFn.distance(vec);
+				if(dist < minDist) minDist = dist;
+
+				distList[rid] = minDist;
+				distSum += minDist;
+				rid ++;
+			}	
+			s.close();
+			// Sampling vector based on its distance to nearest neighbor
+			int sampleId = 0;
+			double randomValue = random.nextDouble() * (distSum - distList[0]) + distList[0];
+
+			// The first group center is vector 0.
+			// So we can start select from the second one.
+			for(int j=1; j<numItems; j++) { 
+				distList[j] += distList[j-1];
+				if(distList[j] > randomValue) {
+					sampleId = j;	
+					break;
+				}
+			}
+			// System.out.println("Center " + i + "is set as vector " + sampleId);
+			
+			s = (TableScan) p.open();
+			s.beforeFirst();
+			while (s.next()) {
+				if (sampleId == 0)  break;
+				sampleId--;
+			}
+			// Update next groupCenter and set it as current center
+			currentCenter = (VectorConstant) s.getVal(embField);
+			s.close();
+           
+			groupCenter[i] = currentCenter;
+		}
 	}
 
 	private void KMeans_init(TablePlan p, Transaction tx) {
@@ -220,7 +281,6 @@ public class KNNAlg{
 			rid++;
 		}
 		s.close();
-
 		for(int i=0; i<numGroups; i++) {
 			if(memberCnt[i] !=  0){
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
