@@ -20,6 +20,7 @@ import org.vanilladb.core.sql.distfn.EuclideanFn;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
 import org.vanilladb.core.util.ByteHelper;
+import org.vanilladb.core.util.CoreProperties;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -35,9 +36,9 @@ public class KNNAlg{
 	private int numDimension, numItems, numNeighbors;
 
 	// Hyper Parameters
-	private static int numGroups = 9990; // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
+	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990); // CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990);
 	private static int maxIter = 1000;
-	private static int groupMultiplier = 1;
+	private static int groupMultiplier = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".GROUP_MULTIPLIER", 9990);;
 
 	// Utils
 	private static boolean centerLoaded = false;
