@@ -25,8 +25,7 @@ static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
     
         
  	    // Dealing with tail of dim % SPECIES.length()
-    	sum_d = 0;
- 	    for (i=0 ; i < vec.dimension(); i++) {
+ 	    for (; i < vec.dimension(); i++) {
  		   double diff = query.get(i) - vec.get(i);
            sum_d += diff * diff;
  	    }
@@ -49,8 +48,7 @@ static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
 
 
         // Dealing with tail of dim % SPECIES.length()
-        sum_d = 0;
-        for (i=0 ; i < vec.dimension(); i++) {
+        for (; i < vec.dimension(); i++) {
             double diff = query.get(i) - vec.get(i);
             sum_d += diff * diff;
         }

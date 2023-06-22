@@ -88,7 +88,7 @@ public class KNNHelper {
 
             Schema sch2 = new Schema();
             sch2.addField("groupid", Type.INTEGER);
-            sch2.addField("groupsz", Type.INTEGER);
+            // sch2.addField("groupsz", Type.INTEGER);
             sch2.addField("i_vector", Type.VECTOR(vecSz));
             CreateTableData ctd2 = new CreateTableData(centerTbl, sch2);
             Verifier.verifyCreateTableData(ctd2, tx);
@@ -109,7 +109,7 @@ public class KNNHelper {
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.BIGINT, ByteHelper.toBytes(recordId.block().number()));
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
-        ConstantExpression test = new ConstantExpression(blockId);
+        // ConstantExpression test = new ConstantExpression(blockId);
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("groupid", new ConstantExpression(groupId));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
@@ -147,17 +147,17 @@ public class KNNHelper {
         return  Constant.defaultInstance(Type.INTEGER);
     }*/
 
-    public void updateGroupCenter(Constant groupId, int groupSz, VectorConstant vec, Transaction tx){
+    public void updateGroupCenter(Constant groupId, /*int groupSz, */VectorConstant vec, Transaction tx){
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
-        Constant groupsz = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupSz));
+        // Constant groupsz = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupSz));
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("i_vector", new ConstantExpression(vec));
         Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
         ModifyData md = new ModifyData(centerTbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0) {
-            List<String> fields = Arrays.asList("groupid", "groupsz", "i_vector");
-            List<Constant> vals = Arrays.asList(groupId, groupsz, vec);
+            List<String> fields = Arrays.asList("groupid", /*"groupsz", */ "i_vector");
+            List<Constant> vals = Arrays.asList(groupId, /*groupsz,  */vec);
             InsertData ind = new InsertData(centerTbl, fields, vals);
             iup.executeInsert(ind, tx);
         }
@@ -178,7 +178,7 @@ public class KNNHelper {
         s.close();
         return groupCenters;
     }
-    public List<Constant> queryGroupSz(Transaction tx){
+    /*public List<Constant> queryGroupSz(Transaction tx){
         List<Constant> groupCenters = new ArrayList<Constant>();
         for(int i = 0 ; i < numGroups ; i++){
             groupCenters.add(Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(0)));
@@ -192,7 +192,7 @@ public class KNNHelper {
         }
         s.close();
         return groupCenters;
-    }
+    }*/
 
     public List<RecordId> queryRecord(Constant groupId, Transaction tx){
         TablePlan tp = new TablePlan(tbl, tx);

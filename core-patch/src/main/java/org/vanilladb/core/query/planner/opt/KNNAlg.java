@@ -44,7 +44,7 @@ public class KNNAlg{
 	private static boolean centerLoaded = false;
 	private static int curItems = 0;
 	private static VectorConstant[] groupCenter;
-	private static int[] groupSz;
+	// private static int[] groupSz;
 	private static Object initGroupCenter = new Object();
 	private static KNNHelper knnHelper;
 
@@ -66,7 +66,7 @@ public class KNNAlg{
 			synchronized (initGroupCenter){
 				if(groupCenter == null){
 					groupCenter = new VectorConstant[numGroups];
-					groupSz = new int[numGroups];
+					// groupSz = new int[numGroups];
 					Transaction tx = VanillaDb.txMgr().newTransaction(
 							Connection.TRANSACTION_SERIALIZABLE, false);
 					loadCenters(tx);
@@ -92,12 +92,8 @@ public class KNNAlg{
 	public List<Constant> findKNN(VectorConstant query, Transaction tx) {
 		DistanceFn distFn = new EuclideanFn("vector");
 		distFn.setQueryVector(query);
-		TablePlan p = new TablePlan(tblName, tx);
 
 		// 1. Assign query vector to a group
-		int gid = 0;
-		Double minDist = Double.MAX_VALUE;
-
 		Pair<Double, Integer>[] arr = IntStream.range(0, numGroups)
 				.parallel()
 				.mapToObj(i -> {
@@ -108,6 +104,7 @@ public class KNNAlg{
 
 		Comparator<Pair<Double, Integer>> pairComparator = Comparator.comparing(Pair::getKey);
 		Arrays.parallelSort(arr, pairComparator);
+
 		// 2. Calculate distance between query and all other vectors
 		List<RecordId> ridList = new ArrayList<>();
 		int idx = 0;
@@ -116,10 +113,9 @@ public class KNNAlg{
 			Pair<Double, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
 			List<RecordId> tmpList = knnHelper.queryRecord(const_gid, tx);
-			for(int i = 0 ; i < tmpList.size() ; i++){
-				ridList.add(tmpList.get(i));
-			}
+			ridList.addAll(tmpList);
 		}
+
 		// 3. Search top K vector in the group
 		List<Constant> knnVec = KSmallest(ridList, distFn, tx);
 
@@ -128,7 +124,7 @@ public class KNNAlg{
 
 	private void KMeans(Transaction tx) {
 		groupCenter = new VectorConstant[numGroups];
-		groupSz = new int[numGroups];
+		// groupSz = new int[numGroups];
 		TablePlan p = new TablePlan(tblName, tx);
 		DistanceFn distFn = new EuclideanFn("vector");
 		Double prev_error = Double.MAX_VALUE, error;
@@ -173,7 +169,7 @@ public class KNNAlg{
 			while (s.next()){
 				VectorConstant vec = (VectorConstant) s.getVal(embField);
 				Double minDist = distList[rid];
-				Double dist = distFn.distance(vec);
+				Double dist = distFn.distance2(vec);
 				if(dist < minDist) minDist = dist;
 
 				distList[rid] = minDist;
@@ -212,7 +208,6 @@ public class KNNAlg{
 
 	private void KMeans_init(TablePlan p, Transaction tx) {
 		// Initializing group center from vectors
-		// Further Optim: using K-Means++ method. Reference to calculateWeighedCentroid().
 
 		List<Integer> idxList = new ArrayList<Integer>();
 		Set<Integer> checkDistinct = new HashSet<>();
@@ -284,7 +279,7 @@ public class KNNAlg{
 		for(int i=0; i<numGroups; i++) {
 			if(memberCnt[i] !=  0){
 				groupCenter[i] = coordSum[i].div(memberCnt[i]);
-				groupSz[i] = memberCnt[i];
+				// groupSz[i] = memberCnt[i];
 			}
 		}
 	}
@@ -324,7 +319,7 @@ public class KNNAlg{
 
 		for(int i=0; i<numGroups; i++) {
 			Constant gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(i));
-			knnHelper.updateGroupCenter(gid, groupSz[i], groupCenter[i], tx);
+			knnHelper.updateGroupCenter(gid, /*groupSz[i], */groupCenter[i], tx);
 		}
 	}
 
@@ -333,10 +328,10 @@ public class KNNAlg{
 		if(!centerLoaded)
 		{
 			List<VectorConstant> centerList = knnHelper.queryGroupCenters(tx);
-			List<Constant> centerSzList = knnHelper.queryGroupSz(tx);
+			// List<Constant> centerSzList = knnHelper.queryGroupSz(tx);
 			if(centerList.size() == 0)return;
 			for(int i=0; i<numGroups; i++) groupCenter[i] = centerList.get(i);
-			for(int i=0; i<numGroups; i++) groupSz[i] = (int)centerSzList.get(i).asJavaVal();
+			// for(int i=0; i<numGroups; i++) groupSz[i] = (int)centerSzList.get(i).asJavaVal();
 		}
 		centerLoaded = true;
 	}
