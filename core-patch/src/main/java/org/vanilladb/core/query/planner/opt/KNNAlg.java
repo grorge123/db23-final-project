@@ -38,7 +38,7 @@ public class KNNAlg{
 	// Hyper Parameters
 	private static int numGroups = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".NUM_GROUPS", 9990); 
 	private static int maxIter = 100;
-	private static int groupMultiplier = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".GROUP_MULTIPLIER", 9990);
+	private static int groupMultiplier = CoreProperties.getLoader().getPropertyAsInteger(KNNAlg.class.getName() + ".GROUP_MULTIPLIER", 1);
 
 	// Utils
 	private static boolean centerLoaded = false;
@@ -108,7 +108,7 @@ public class KNNAlg{
 		// 2. Calculate distance between query and all other vectors
 		List<RecordId> ridList = new ArrayList<>();
 		int idx = 0;
-		while (idx < groupMultiplier){
+		while (idx < groupMultiplier || ridList.size() < numNeighbors){
 			if(idx >= arr.length)break;
 			Pair<Float, Integer> gp = arr[idx++];
 			Constant const_gid = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(gp.getValue()));
@@ -307,6 +307,7 @@ public class KNNAlg{
 	private void KMeans_store(TablePlan p, int[] groupId, Transaction tx) {
 		// Storing groupId and groupCenter back to tables.
 
+		knnHelper.deleteGroup(tx);
 		TableScan s = (TableScan) p.open();
 		s.beforeFirst();
 		int rid = 0;

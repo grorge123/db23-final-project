@@ -24,7 +24,7 @@ public class CosineFn extends DistanceFn {
     }
 
     @Override
-    protected double calculateDistance2(VectorConstant vec) {
+    protected float calculateDistance2(VectorConstant vec) {
 
         double sum = 0;
         double querySum = 0;
@@ -35,6 +35,6 @@ public class CosineFn extends DistanceFn {
             querySum += query.get(i) * query.get(i);
             vecSum += vec.get(i) * vec.get(i);
         }
-        return sum / (Math.sqrt(querySum) * Math.sqrt(vecSum));
+        return (float)(sum / (Math.sqrt(querySum) * Math.sqrt(vecSum)));
     }
 }

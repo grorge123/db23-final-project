@@ -5,9 +5,7 @@ import org.vanilladb.core.query.algebra.Scan;
 import org.vanilladb.core.query.algebra.SelectPlan;
 import org.vanilladb.core.query.algebra.TablePlan;
 import org.vanilladb.core.query.algebra.TableScan;
-import org.vanilladb.core.query.parse.CreateIndexData;
-import org.vanilladb.core.query.parse.ModifyData;
-import org.vanilladb.core.query.parse.InsertData;
+import org.vanilladb.core.query.parse.*;
 import org.vanilladb.core.query.planner.Verifier;
 import org.vanilladb.core.query.planner.index.IndexSelector;
 import org.vanilladb.core.query.planner.index.IndexUpdatePlanner;
@@ -20,7 +18,6 @@ import org.vanilladb.core.storage.metadata.TableInfo;
 import org.vanilladb.core.storage.record.RecordFile;
 import org.vanilladb.core.storage.record.RecordId;
 import org.vanilladb.core.storage.tx.Transaction;
-import org.vanilladb.core.query.parse.CreateTableData;
 import org.vanilladb.core.sql.Schema;
 import org.vanilladb.core.sql.Constant;
 import org.vanilladb.core.storage.index.IndexType;
@@ -31,6 +28,7 @@ import java.util.*;
 import org.vanilladb.core.query.planner.opt.Pair;
 
 import static org.vanilladb.core.sql.predicate.Term.OP_EQ;
+import static org.vanilladb.core.sql.predicate.Term.OP_LT;
 
 public class KNNHelper {
     private static boolean isInit = false;
@@ -79,12 +77,14 @@ public class KNNHelper {
             }
             IndexUpdatePlanner iup = new IndexUpdatePlanner();
             Schema sch = new Schema();
-            sch.addField("groupid", Type.INTEGER);
+//            sch.addField("groupid", Type.INTEGER);
             sch.addField("recordid", Type.INTEGER);
             sch.addField("blockid", Type.INTEGER);
-            CreateTableData ctd = new CreateTableData(tbl, sch);
-            Verifier.verifyCreateTableData(ctd, tx);
-            iup.executeCreateTable(ctd, tx);
+            for(int i = 0 ; i < numGroups ; i++){
+                CreateTableData ctd = new CreateTableData(tbl + i, sch);
+                Verifier.verifyCreateTableData(ctd, tx);
+                iup.executeCreateTable(ctd, tx);
+            }
 
             Schema sch2 = new Schema();
             sch2.addField("groupid", Type.INTEGER);
@@ -94,34 +94,43 @@ public class KNNHelper {
             Verifier.verifyCreateTableData(ctd2, tx);
             iup.executeCreateTable(ctd2, tx);
 
-            CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
-            Verifier.verifyCreateIndexData(cid, tx);
-            iup.executeCreateIndex(cid, tx);
-            cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid"), IndexType.BTREE);
-            Verifier.verifyCreateIndexData(cid, tx);
-            iup.executeCreateIndex(cid, tx);
+//            CreateIndexData cid = new CreateIndexData("groupindex", tbl, Arrays.asList("groupid"), IndexType.BTREE);
+//            Verifier.verifyCreateIndexData(cid, tx);
+//            iup.executeCreateIndex(cid, tx);
+//            cid = new CreateIndexData("recordindex", tbl, Arrays.asList("recordid", "blockid"), IndexType.BTREE);
+//            Verifier.verifyCreateIndexData(cid, tx);
+//            iup.executeCreateIndex(cid, tx);
+
             tx.commit();
             isInit = true;
         }
     }
-
+    public void deleteGroup(Transaction tx){
+        IndexUpdatePlanner iup = new IndexUpdatePlanner();
+        Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(0));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_LT, new ConstantExpression(recordIdId)));
+        for(int i = 0 ; i < numGroups ; i++){
+            String newTBL = tbl + i;
+            DeleteData md = new DeleteData(newTBL, pred);
+            iup.executeDelete(md, tx);
+        }
+    }
     public void updateGroupId(RecordId recordId, Constant groupId, Transaction tx){
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
         Constant blockId = Constant.newInstance(Type.BIGINT, ByteHelper.toBytes(recordId.block().number()));
         IndexUpdatePlanner iup = new IndexUpdatePlanner();
-        // ConstantExpression test = new ConstantExpression(blockId);
-        Map<String, Expression> map = new HashMap<String, Expression>();
-        map.put("groupid", new ConstantExpression(groupId));
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
-        pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
-        ModifyData md = new ModifyData(tbl, map, pred);
-        int updateCount = iup.executeModify(md, tx);
-        if(updateCount == 0){
-            List<String> fields = Arrays.asList("groupid", "recordid", "blockid");
-            List<Constant> vals = Arrays.asList(groupId, recordIdId, blockId);
-            InsertData ind = new InsertData(tbl, fields, vals);
-            iup.executeInsert(ind, tx);
-        }
+//        Predicate pred = new Predicate(new Term(new FieldNameExpression("recordid"), OP_EQ, new ConstantExpression(recordIdId)));
+//        pred.conjunctWith(new Term(new FieldNameExpression("blockid"), OP_EQ, new ConstantExpression(blockId)));
+//        for(int i = 0 ; i < numGroups ; i++){
+//            String newTBL = tbl + i;
+//            DeleteData md = new DeleteData(newTBL, pred);
+//            iup.executeDelete(md, tx);
+//        }
+        int _groupId = (int)groupId.asJavaVal();
+        List<String> fields = Arrays.asList("recordid", "blockid");
+        List<Constant> vals = Arrays.asList(recordIdId, blockId);
+        InsertData ind = new InsertData(tbl + _groupId, fields, vals);
+        iup.executeInsert(ind, tx);
     }
     /*public Constant queryGroupId(RecordId recordId, Transaction tx){
         Constant recordIdId = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(recordId.id()));
@@ -152,7 +161,7 @@ public class KNNHelper {
         // Constant groupsz = Constant.newInstance(Type.INTEGER, ByteHelper.toBytes(groupSz));
         Map<String, Expression> map = new HashMap<String, Expression>();
         map.put("i_vector", new ConstantExpression(vec));
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
+        Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_LT, new ConstantExpression(groupId)));
         ModifyData md = new ModifyData(centerTbl, map, pred);
         int updateCount = iup.executeModify(md, tx);
         if(updateCount == 0) {
@@ -195,14 +204,9 @@ public class KNNHelper {
     }*/
 
     public List<RecordId> queryRecord(Constant groupId, Transaction tx){
-        TablePlan tp = new TablePlan(tbl, tx);
-        Predicate pred = new Predicate(new Term(new FieldNameExpression("groupid"), OP_EQ, new ConstantExpression(groupId)));
-        Plan selectPlan = IndexSelector.selectByBestMatchedIndex(tbl, tp, pred, tx);
-        if (selectPlan == null)
-            selectPlan = new SelectPlan(tp, pred);
-        else
-            selectPlan = new SelectPlan(selectPlan, pred);
-        Scan s = selectPlan.open();
+        int _groupId = (int)groupId.asJavaVal();
+        TablePlan p = new TablePlan(tbl+_groupId, tx);
+        TableScan s = (TableScan) p.open();
         s.beforeFirst();
         List<RecordId> reList = new ArrayList<RecordId>();
         while (s.next()){
